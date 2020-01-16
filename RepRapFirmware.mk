@@ -9,7 +9,6 @@ RRF_SRC_DIRS += Heating/Sensors Fans ObjectModel Endstops Hardware Tools
 RRF_SRC_DIRS += Display Display/ST7920
 #RRF_SRC_DIRS += Linux
 
-
 #LPC RRF Addons
 RRF_SRC_DIRS += LPC LPC/MCP4461 LPC/FatFS
 

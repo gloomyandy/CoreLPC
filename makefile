@@ -20,7 +20,7 @@ BUILD = Release
 #NETWORKING = true
 ESP8266WIFI = true
 
-TMC22XX = false
+TMC22XX = true
 
 #Comment out to show compilation commands (verbose)
 V=@
