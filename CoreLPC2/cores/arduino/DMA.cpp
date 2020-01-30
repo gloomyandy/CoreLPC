@@ -16,6 +16,9 @@ void InitialiseDMA()
     {
         /* Initialize GPDMA controller */
         Chip_GPDMA_Init(LPC_GPDMA);
+
+        //Timer1 MR0 Match Channel
+        dma_channels[DMA_TIMER_MAT1_0] = Chip_GPDMA_GetFreeChannel(LPC_GPDMA, GPDMA_CONN_MAT1_0);
         
         //SSP0 DMA Channels
         dma_channels[DMA_SSP0_RX] = Chip_GPDMA_GetFreeChannel(LPC_GPDMA, GPDMA_CONN_SSP0_Rx);
@@ -24,10 +27,7 @@ void InitialiseDMA()
         //SSP1 DMA Channels
         dma_channels[DMA_SSP1_RX] = Chip_GPDMA_GetFreeChannel(LPC_GPDMA, GPDMA_CONN_SSP1_Rx);
         dma_channels[DMA_SSP1_TX] = Chip_GPDMA_GetFreeChannel(LPC_GPDMA, GPDMA_CONN_SSP1_Tx);
-        
-        //Timer1 MR0 Match Channel
-        dma_channels[DMA_TIMER_MAT1_0] = Chip_GPDMA_GetFreeChannel(LPC_GPDMA, GPDMA_CONN_MAT1_0);
-        
+
         gpdmaInit = true;
         
         NVIC_EnableIRQ(DMA_IRQn);
