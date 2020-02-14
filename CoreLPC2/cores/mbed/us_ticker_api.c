@@ -53,10 +53,25 @@ uint32_t us_ticker_read() {
 }
 
 static inline void us_ticker_set_interrupt(unsigned int timestamp) {
-    // set match value
-    US_TICKER_TIMER->MR[0] = timestamp;
-    // enable match interrupt
+    // enable match interrupt, do it now to ensure we do not miss any matches
+    // there is a small chance that this and the code below may generate
+    // an extra interrupt, but that is harmless
     US_TICKER_TIMER->MCR |= 1;
+    // There is a chance that the timestamp may be in the past (or is about to be).
+    // This can be caused by other higher priority interrupts delaying the actual
+    // setting of the counters after the timestamp has been calculated/checked.
+    // This can be very bad as it will mean that the next interrupt will not fire
+    // until the timer wraps. We check for this situation and arrange for such
+    // timestamps to be moved to the "very near" future. Ensuring that they will
+    // fire.
+    while (true) {
+        // set match value
+        US_TICKER_TIMER->MR[0] = timestamp;
+        // Is the time we have just set still in the future?
+        if ((int)(timestamp - US_TICKER_TIMER->TC) > 0) break;
+        // Move timestamp forwards and try again
+        timestamp = US_TICKER_TIMER->TC + 1;
+    }
 }
 
 static inline void us_ticker_disable_interrupt(void) {
