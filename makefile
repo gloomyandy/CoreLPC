@@ -100,6 +100,7 @@ ifeq ($(NETWORKING), true)
 else ifeq ($(ESP8266WIFI), true)
         $(info  - Building ESP8266 WIFI Support) 
         FLAGS += -DESP8266WIFI
+		#FLAGS += -DESP8266WIFI_SERIAL
 else
         $(info  - No Networking Support)
 endif
