@@ -6,7 +6,7 @@ RRF_SRC_DIRS = FilamentMonitors GCodes GCodes/GCodeBuffer Heating
 RRF_SRC_DIRS += Movement Movement/BedProbing Movement/Kinematics 
 RRF_SRC_DIRS += Storage Libraries/sha1
 RRF_SRC_DIRS += Heating/Sensors Fans ObjectModel Endstops Hardware Tools
-RRF_SRC_DIRS += Display Display/ST7920
+RRF_SRC_DIRS += Display Display/ST7920 GPIO
 #RRF_SRC_DIRS += Linux
 
 #LPC RRF Addons
