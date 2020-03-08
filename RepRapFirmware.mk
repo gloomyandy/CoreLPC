@@ -7,7 +7,6 @@ RRF_SRC_DIRS += Movement Movement/BedProbing Movement/Kinematics
 RRF_SRC_DIRS += Storage Libraries/sha1
 RRF_SRC_DIRS += Heating/Sensors Fans ObjectModel Endstops Hardware Tools
 RRF_SRC_DIRS += Display Display/ST7920 GPIO
-#RRF_SRC_DIRS += Linux
 
 #LPC RRF Addons
 RRF_SRC_DIRS += LPC LPC/MCP4461 LPC/FatFS
@@ -17,6 +16,9 @@ ifeq ($(NETWORKING), true)
 	RRF_SRC_DIRS += Networking LPC/LPCNetworking LPC/LPCNetworking/RTOSPlusTCPEthernet
 else ifeq ($(ESP8266WIFI), true) 
 	RRF_SRC_DIRS += Networking Networking/ESP8266WiFi LPC/LPCNetworking/ESP8266WiFi
+else ifeq ($(SBC), true)
+	RRF_SRC_DIRS += Linux
+	RRF_SRC_DIRS += LPC/NoNetwork
 else
 	RRF_SRC_DIRS += LPC/NoNetwork
 endif
