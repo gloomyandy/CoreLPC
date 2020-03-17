@@ -14,7 +14,7 @@
 * limitations under the License.
 */
 
-//SD:: Code from mbed us_ticker_api.c merged into class for Software PWM Timer
+//SD:: Code adapted from mbed us_ticker_api.c merged into class for Software PWM Timer
 
 #include "SoftwarePWMTimer.h"
 #include "SoftwarePWM.h"
@@ -22,70 +22,58 @@
 
 SoftwarePWMTimer softwarePWMTimer;
 
-
-#define US_TICKER_TIMER      ((LPC_RITIMER_T *)LPC_RITIMER_BASE)
-#define US_TICKER_TIMER_IRQn RITIMER_IRQn
-static uint32_t postscale;
-
 SoftwarePWMTimer::SoftwarePWMTimer()
 {
     head = nullptr;
+
+    //Setup RIT
     Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_RIT); //enable power and clocking
+    LPC_RITIMER->MASK = 0;
+    LPC_RITIMER->COUNTER = 0;
+    LPC_RITIMER->CTRL = RIT_CTRL_INT | RIT_CTRL_ENBR | RIT_CTRL_TEN;
+}
+
+inline void SoftwarePWMTimer::ticker_set_interrupt(ticker_event_t *obj, bool inInterrupt)
+{
+    const irqflags_t flags = cpu_irq_save();
+
     
-    US_TICKER_TIMER->CTRL = RIT_CTRL_INT; // clear interrupt bit, disable timer
-    uint32_t PCLK = SystemCoreClock / 4;
-
-    // the RIT timer does not have a prescale register so it will always operate with PCLK ticks
-    // to get things into the "standard" range we use a postscale value. Note that this limits the
-    // range of event times that can be used to 85 seconds, but this is not typically an issue
-    // with how it is used.
-    postscale = PCLK / 1000000; // default to 1MHz (1 us ticks)
-    US_TICKER_TIMER->CTRL = RIT_CTRL_INT|RIT_CTRL_TEN; // clear interrupt bit, enable timer
-    NVIC_EnableIRQ(US_TICKER_TIMER_IRQn);
-
-}
-
-uint32_t SoftwarePWMTimer::us_ticker_read()
-{
-    return US_TICKER_TIMER->COUNTER/postscale;
-}
-
-
-inline void SoftwarePWMTimer::us_ticker_set_interrupt(ticker_event_t *obj)
-{
-    // set match value
-
-    // There is a chance that the timestamp may be in the past (or is about to be).
-    // This can be caused by other higher priority interrupts delaying the actual
-    // setting of the counters after the timestamp has been calculated/checked.
-    // This can be very bad as it will mean that the next interrupt will not fire
-    // until the timer wraps. We check for this situation and arrange for such
-    // timestamps to be moved to the "very near" future. Ensuring that they will
-    // fire.
-    while (true)
+    LPC_RITIMER->CTRL &= ~RIT_CTRL_TEN; //Stop the timer
+        
+    //Check to make sure the timestamp is in the future
+    if((int)(obj->timestamp - TickerRead()) <= 0)
     {
-        // Clear any existing match
-        if (US_TICKER_TIMER->CTRL & RIT_CTRL_INT)
-            US_TICKER_TIMER->CTRL |= RIT_CTRL_INT;
-        // set match value
-        US_TICKER_TIMER->COMPVAL = obj->timestamp;
-        // Is the time we have just set still in the future?
-        if ((int)(obj->timestamp - US_TICKER_TIMER->COUNTER) > 0) break;
-        // Move timestamp forwards and try again
-        obj->timestamp = US_TICKER_TIMER->COUNTER + postscale;
+#ifdef LPC_DEBUG
+        obj->PWM->IncrementLateCount(); // scheduled late
+#endif
+        if(inInterrupt)
+        {
+            //called from the ticker interrupt, schedule a little later to allow lower priority ints to run
+            obj->timestamp = TickerRead() + TicksPerMicrosecond();
+        }
+        else
+        {
+            obj->timestamp = TickerRead() + 1; //next timer tick
+        }
     }
-    NVIC_EnableIRQ(US_TICKER_TIMER_IRQn);
+
+    ticker_clear_interrupt();
+    LPC_RITIMER->COMPVAL = obj->timestamp; //Set timer compare value
+    NVIC_EnableIRQ(RITIMER_IRQn);
+
+    LPC_RITIMER->CTRL |= RIT_CTRL_TEN; //Enable the timer
+    
+    cpu_irq_restore(flags);
 }
 
-inline void SoftwarePWMTimer::us_ticker_disable_interrupt(void)
+inline void SoftwarePWMTimer::ticker_disable_interrupt(void)
 {
-    NVIC_DisableIRQ(US_TICKER_TIMER_IRQn);
+    NVIC_DisableIRQ(RITIMER_IRQn);
 }
 
-inline void SoftwarePWMTimer::us_ticker_clear_interrupt(void)
+inline void SoftwarePWMTimer::ticker_clear_interrupt(void)
 {
-    if (US_TICKER_TIMER->CTRL & RIT_CTRL_INT)
-        US_TICKER_TIMER->CTRL |= RIT_CTRL_INT;
+    LPC_RITIMER->CTRL |= RIT_CTRL_INT; // Clear Interrupt
 }
 
 extern "C" void RIT_IRQHandler(void) __attribute__ ((hot));
@@ -96,7 +84,8 @@ void RIT_IRQHandler(void)
 
 void SoftwarePWMTimer::Interrupt()
 {
-    us_ticker_clear_interrupt();
+    
+    ticker_clear_interrupt();
 
     /* Go through all the pending TimerEvents */
     while (1)
@@ -104,11 +93,11 @@ void SoftwarePWMTimer::Interrupt()
         if (head == NULL)
         {
             // There are no more TimerEvents left, so disable matches.
-            us_ticker_disable_interrupt();
+            ticker_disable_interrupt();
             return;
         }
 
-        if ((int)(head->timestamp - US_TICKER_TIMER->COUNTER) <= 0)
+        if ((int)(head->timestamp - TickerRead()) <= 0)
         {
             // This event was in the past:
             //      point to the following one and execute its handler
@@ -121,7 +110,7 @@ void SoftwarePWMTimer::Interrupt()
         {
             // This event and the following ones in the list are in the future:
             //      set it as next interrupt and return
-            us_ticker_set_interrupt(head);
+            ticker_set_interrupt(head, true);
             return;
         }
     }
@@ -129,16 +118,18 @@ void SoftwarePWMTimer::Interrupt()
 
 
 
+void SoftwarePWMTimer::ScheduleEventInMicroseconds(ticker_event_t *obj, uint32_t microseconds, SoftwarePWM *softPWMObject)
+{
+    //convert microseconds into timer ticks
+    uint32_t timestamp = TickerRead() + microseconds * TicksPerMicrosecond();
+    ticker_insert_event(obj, timestamp, softPWMObject);
+}
 
 
-
-void SoftwarePWMTimer::us_ticker_insert_event(ticker_event_t *obj, unsigned int timestamp, SoftwarePWM *softPWMObject)
+void SoftwarePWMTimer::ticker_insert_event(ticker_event_t *obj, uint32_t timestamp, SoftwarePWM *softPWMObject)
 {
     /* disable interrupts for the duration of the function */
     const irqflags_t flags = cpu_irq_save();
-
-    // Scale the uS time into our clock units
-    timestamp *= postscale;
 
     // initialise our data
     obj->timestamp = timestamp;
@@ -163,7 +154,7 @@ void SoftwarePWMTimer::us_ticker_insert_event(ticker_event_t *obj, unsigned int 
     if (prev == NULL)
     {
         head = obj;
-        us_ticker_set_interrupt(obj);
+        ticker_set_interrupt(obj);
     }
     else
     {
@@ -176,7 +167,7 @@ void SoftwarePWMTimer::us_ticker_insert_event(ticker_event_t *obj, unsigned int 
     
 }
 
-void SoftwarePWMTimer::us_ticker_remove_event(ticker_event_t *obj)
+void SoftwarePWMTimer::RemoveEvent(ticker_event_t *obj)
 {
     const irqflags_t flags = cpu_irq_save();
 
@@ -187,7 +178,7 @@ void SoftwarePWMTimer::us_ticker_remove_event(ticker_event_t *obj)
         head = obj->next;
         if (obj->next != NULL)
         {
-            us_ticker_set_interrupt(head);
+            ticker_set_interrupt(head);
         }
     }
     else
