@@ -22,3 +22,10 @@ if [ -f ./build/firmware.bin ]; then
         mv ./build/firmware.bin ${OUTPUT}/firmware-wifi.bin
 fi 
 
+#Building Firmware + SBC
+make distclean
+make -j2 firmware BUILD=Release MBED=false NETWORKING=false ESP8266WIFI=false SBC=true OUTPUT_NAME=firmware USE_DFU=false
+if [ -f ./build/firmware.bin ]; then
+        mv ./build/firmware.bin ${OUTPUT}/firmware-sbc.bin
+fi 
+
