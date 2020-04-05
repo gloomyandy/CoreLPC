@@ -7,21 +7,21 @@ PROCESSOR = LPC17xx
 
 
 
-BUILD_DIR = ./build
-FREERTOS_DIR = ./FreeRTOS
-REPRAPFIRMWARE_DIR = ./RepRapFirmware
-RRFLIBRARIES_DIR = ./RRFLibraries
-CORELPC_DIR = ./CoreLPC2
+BUILD_DIR ?= ./build
+FREERTOS_DIR ?= ./FreeRTOS
+REPRAPFIRMWARE_DIR ?= ./RepRapFirmware
+RRFLIBRARIES_DIR ?= ./RRFLibraries
+CORELPC_DIR ?= ./CoreLPC2
 
-#BUILD = Debug
-BUILD = Release
+#BUILD ?= Debug
+BUILD ?= Release
 
 #Enable only one
-#NETWORKING = true
-ESP8266WIFI = true
-#SBC = true
+#NETWORKING ?= true
+#ESP8266WIFI ?= true
+SBC ?= true
 
-TMC22XX = true
+TMC22XX ?= true
 
 #Comment out to show compilation commands (verbose)
 V=@

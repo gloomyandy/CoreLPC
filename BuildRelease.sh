@@ -9,9 +9,9 @@ mkdir -p releases/${VER}
 
 #Building Firmware + Ethernet
 make distclean
-make -j2 firmware BUILD=Release MBED=false NETWORKING=true ESP8266WIFI=false OUTPUT_NAME=firmware USE_DFU=false
+make -j2 firmware BUILD=Release MBED=false NETWORKING=true ESP8266WIFI=false TMC22XX=false OUTPUT_NAME=firmware USE_DFU=false
 if [ -f ./build/firmware.bin ]; then
-	mv ./build/firmware.bin ${OUTPUT}
+	mv ./build/firmware.bin ${OUTPUT}/firmware-eth-notmc.bin
 fi 
 
 
