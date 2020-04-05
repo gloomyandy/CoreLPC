@@ -9,44 +9,43 @@
           "env": {
             "INCLUDE": "${config:arm-none-eabi.include}",
             "LIB": "${config:arm-none-eabi.lib}",
-            "LIBGCC": "${config:arm-none-eabi.libgcc}/thumb/v6-m/libgcc.a",
+            "LIBGCC": "${config:arm-none-eabi.libgcc}/thumb/v6-m/libgcc.a"
           }
         },
         "osx": {
           "options": {
             "env": {
-              "PATH": "${config:arm-none-eabi.bin}:${env:PATH}",
+              "PATH": "${config:arm-none-eabi.bin}:${env:PATH}"
             }
-          },
+          }
         },
         "linux": {
           "options": {
             "env": {
-              "PATH": "${config:arm-none-eabi.bin}:${env:PATH}",
+              "PATH": "${config:arm-none-eabi.bin}:${env:PATH}"
             }
-          },
+          }
         },
         "windows": {
           "options": {
             "env": {
-              "PATH": "${config:arm-none-eabi.bin};${env:PATH}",
+              "PATH": "${config:arm-none-eabi.bin};${env:PATH}"
             }
-          },
+          }
         },
         "group": {
           "kind": "build",
-          "isDefault": true,
+          "isDefault": true
         },
         "problemMatcher": "$gcc"
       },
-
       {
         "label": "clean firmware",
         "type": "shell",
         "command": "make clean distclean",
         "group": {
           "kind": "build",
-          "isDefault": true,
+          "isDefault": true
         },
         "problemMatcher": "$gcc"
       }
