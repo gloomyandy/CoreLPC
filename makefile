@@ -117,6 +117,7 @@ endif
 
 CFLAGS   = $(FLAGS) -std=gnu11 -fgnu89-inline -Dnoexcept=
 CXXFLAGS = $(FLAGS) -std=gnu++17 -fno-threadsafe-statics -fexceptions -fno-rtti -Wno-register
+CXXFLAGS_RRFL = $(FLAGS) -std=gnu++17 -fno-threadsafe-statics -fno-exceptions -fno-rtti -Wno-register
 
 
 #all Includes (RRF + Core)
@@ -159,7 +160,13 @@ $(BUILD_DIR)/%.o: %.c
 	$(V)$(MKDIR) $(dir $@)
 	$(V)$(CC)  $(CFLAGS) $(DEFINES) $(INCLUDES) -MMD -MP -MM -MF $(patsubst %.o,%.d,$@) $<
 	$(V)$(CC)  $(CFLAGS) $(DEFINES) $(INCLUDES) -MMD -MP -o $@ $<
-	
+
+$(BUILD_DIR)/$(RRFLIBRARIES_DIR)/%.o : $(RRFLIBRARIES_DIR)/%.cpp
+	@echo "RRFL [$<]"
+	$(V)$(MKDIR) $(dir $@)
+	$(V)$(CXX) $(CXXFLAGS_RRFL) $(DEFINES) $(INCLUDES) -MMD -MP -MM -MF $(patsubst %.o,%.d,$@) $<
+	$(V)$(CXX) $(CXXFLAGS_RRFL) $(DEFINES) $(INCLUDES) -MMD -MP -o $@ $<
+
 $(BUILD_DIR)/%.o: %.cpp
 	@echo "[$<]"
 	$(V)$(MKDIR) $(dir $@)
