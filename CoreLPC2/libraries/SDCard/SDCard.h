@@ -32,7 +32,7 @@ class SDCard {
 public:
 
 
-    SDCard(uint8_t SSPSlot, Pin cs);
+    SDCard(SSPChannel SSPSlot, Pin cs);
     ~SDCard() {};
     void ReInit(Pin cs, uint32_t frequency);
     void SetSSPChannel(SSPChannel channel);

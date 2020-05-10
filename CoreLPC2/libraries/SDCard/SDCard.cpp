@@ -59,7 +59,7 @@ constexpr uint32_t SCLK_INIT =  400000;     /* SCLK frequency under initializati
 
 #define SD_COMMAND_TIMEOUT 5000
 
-SDCard::SDCard(uint8_t SSPSlot, Pin cs) {
+SDCard::SDCard(SSPChannel SSPSlot, Pin cs) {
     
     maxFrequency = SCLK_SD12; //default max frequency to run at
     frequency = SCLK_SD12;
@@ -67,20 +67,14 @@ SDCard::SDCard(uint8_t SSPSlot, Pin cs) {
     sdcardSectors = 0;
     sdcardBlockSize = 512;
     
-    if(SSPSlot == 0 ){
-        _sspi_device.sspChannel = SSP0;
-    } else if(SSPSlot == 1) {
-        _sspi_device.sspChannel = SSP1;
-    }
+    _sspi_device.sspChannel = SSPSlot;
     _sspi_device.csPin = cs;
     _sspi_device.csPolarity = false; // active low chip select
     _sspi_device.clockFrequency = SCLK_INIT; //initial init freq
     _sspi_device.bitsPerTransferControl = 8;
     _sspi_device.spiMode = SPI_MODE_0;
-    
     sspi_master_init(&_sspi_device, 8); //default to 8bits
     sspi_master_setup_device(&_sspi_device); //init the bus
-    
     status = STA_NOINIT;
 }
 
@@ -266,7 +260,6 @@ uint8_t SDCard::send_cmd (uint8_t cmd, uint32_t arg)/* Return value: R1 resp (bi
 {
     uint8_t n, res;
     
-    
     if (cmd & 0x80) {    /* Send a CMD55 prior to ACMD<n> */
         cmd &= 0x7F;
         res = send_cmd(CMD55, 0);
@@ -308,7 +301,7 @@ uint8_t SDCard::disk_initialize ()
 {
     uint8_t n, cmd, ty, ocr[4];
     
-    if(_sspi_device.csPin == NoPin) return 1; // We dont have a CS pin defined, return FAIL
+    if(_sspi_device.csPin == NoPin || _sspi_device.sspChannel == SSPNONE) return 1; // We dont have a CS pin defined, return FAIL
     if (status & STA_NODISK) return status;    /* Is a card existing in the soket? */
     
     
@@ -407,7 +400,7 @@ uint8_t SDCard::disk_initialize ()
         status = STA_NOINIT;
         return 1;
     }
-    
+
     return 0; //Success
 }
 

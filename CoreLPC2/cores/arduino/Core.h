@@ -105,6 +105,9 @@ enum SSPChannel : uint8_t
     
     //Software SPI
     SWSPI0,
+
+    // Not defined
+    SSPNONE = 0xff
 };
 
 

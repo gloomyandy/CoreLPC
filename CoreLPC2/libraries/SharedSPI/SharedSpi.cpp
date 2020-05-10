@@ -6,8 +6,6 @@
 #include "SoftwareSPI.h"
 #include "HardwareSPI.h"
 
-static HardwareSPI ssp0(LPC_SSP0);
-static HardwareSPI ssp1(LPC_SSP1);
 static SoftwareSPI swspi0;
 
 
@@ -16,11 +14,11 @@ SPI *getSSPDevice(SSPChannel channel)
 {
     switch(channel)
     {
-        case SSP0: return &ssp0; break;
-        case SSP1: return &ssp1; break;
+        case SSP0: return &HardwareSPI::SSP0; break;
+        case SSP1: return &HardwareSPI::SSP1; break;
         case SWSPI0: return &swspi0; break;
+        default: return nullptr;
     }
-    return nullptr;
 }
 
 void sspi_setPinsForChannel(SSPChannel channel, Pin sck, Pin miso, Pin mosi)

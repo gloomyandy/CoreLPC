@@ -11,7 +11,10 @@
 #define SPI1_FUNCTION  PINSEL_FUNC_2
 
 #define SPI_TIMEOUT       15000
-
+// Pin usage, SSP1 has a fixed set of pins SSP0 has two alternatives for each pin
+static constexpr Pin SSP1Pins[] = {SPI1_SCK, SPI1_MISO, SPI1_MOSI, SPI1_SSEL};
+//static Pin SSP0Pins[] = {SPI0_SCK, SPI0_MISO, SPI0_MOSI, SPI0_SSEL};
+static Pin SSP0Pins[] = {SPI0_SCK, SPI0_MISO, P1_24, SPI0_SSEL};
 
 //SSP Status Register Bits
 constexpr uint8_t SR_TFE = (1<<0); //Transmit FIFO Empty. This bit is 1 is the Transmit FIFO is empty, 0 if not.
@@ -20,73 +23,67 @@ constexpr uint8_t SR_RNE = (1<<2); //Receive FIFO Not Empty. This bit is 0 if th
 constexpr uint8_t SR_RFF = (1<<3); //Receive FIFO Full. This bit is 1 if the Receive FIFO is full, 0 if not.
 constexpr uint8_t SR_BSY = (1<<4); //Busy. This bit is 0 if the SSPn controller is idle, or 1 if it is currently sending/receiving a frame and/or the Tx FIFO is not empty.
 
+HardwareSPI HardwareSPI::SSP0(LPC_SSP0, SSP0Pins);
+HardwareSPI HardwareSPI::SSP1(LPC_SSP1, (Pin *)SSP1Pins);
 
 //#define SSPI_DEBUG
 extern "C" void debugPrintf(const char* fmt, ...) __attribute__ ((format (printf, 1, 2)));
 
-// Wait for transmitter ready returning true if timed out
-static inline bool waitForTxReady(LPC_SSP_T* sspDevice)
+// Flush the TX fifo. Note this code makes use of "reserved" registers
+// these are actually test registers for the ARM PrimeCell Synchronous Serial
+// Port (PL022), which is used to provide SSP devices on the LPC1768 device.
+// For details see: 
+// http://infocenter.arm.com/help/topic/com.arm.doc.ddi0194g/DDI0194G_ssp_pl022_r1p3_trm.pdf 
+#define SSPTCR(SSP) ((__IO uint32_t *)((__IO uint8_t *)(SSP) + 0x80))
+#define SSPTDR(SSP) ((__IO uint32_t *)((__IO uint8_t *)(SSP) + 0x8C))
+
+static inline void flushTxFifo(LPC_SSP_T* sspDevice)
 {
-    uint32_t timeout = SPI_TIMEOUT;
-    while (sspDevice->SR & SR_BSY) //check if SSP BSY flag (1=busy)
+    if (sspDevice->SR & SR_TFE) return;
+    // enable test mode access to the TX fifo 
+    *SSPTCR(sspDevice) |= 0x2;
+    //debugPrintf("status reg %x\n", LPC_SSP0->SR);
+    int cnt = 8;
+    while(!(sspDevice->SR & SR_TFE) && cnt-- > 0)
     {
-        if (--timeout == 0)
-        {
-            return true;
-        }
+        (void)(*SSPTDR(sspDevice));
     }
-    return false;
+    // back to normal mode
+    *SSPTCR(sspDevice) &= ~2;
+    //debugPrintf("status reg %x cnt %d\n", LPC_SSP0->SR, cnt);
+}
+
+static inline void flushRxFifo(LPC_SSP_T* sspDevice)
+{
+    while(sspDevice->SR & SR_RNE)
+    {
+        (void)LPC_SSP0->DR;
+    }
 }
 
 
-
-//Make sure all the SSP FIFOs are empty, if they aren't clear them
-//returns true if ready, false if timeout
-static inline bool clearSSPTimeout(LPC_SSP_T* sspDevice)
+// Disable the device and flush any data from the fifos
+void HardwareSPI::disable()
 {
 #ifdef SSPI_DEBUG
-    if( (sspDevice->SR & SR_BSY) ) debugPrintf("SPI Busy\n");
-    if( !(sspDevice->SR & SR_TFE) ) debugPrintf("SPI Tx Not Empty\n");
-    if( (sspDevice->SR & SR_RNE) ) debugPrintf("SPI Rx Not Empty\n");
+    if( (ssp->SR & SR_BSY) ) debugPrintf("SPI Busy\n");
+    if( !(ssp->SR & SR_TFE) ) debugPrintf("SPI Tx Not Empty\n");
+    if( (ss->SR & SR_RNE) ) debugPrintf("SPI Rx Not Empty\n");
 #endif
 
-    //wait for SSP to be idle
-    if (waitForTxReady(sspDevice)) return true; //timed out
+    Chip_SSP_DMA_Disable(ssp);
+    flushTxFifo(ssp);
+    flushRxFifo(ssp);
 
-    //check the Receive FIFO
-    if( (sspDevice->SR & SR_RNE) ){
-        //clear out the FIFO
-        while( (sspDevice->SR & SR_RNE) ){
-            sspDevice->DR; // read
-        }
-    }
-
-    Chip_SSP_ClearIntPending(sspDevice, SSP_INT_CLEAR_BITMASK);
-    
-    return false; //did not timeout (success)
-
+    Chip_SSP_ClearIntPending(ssp, SSP_INT_CLEAR_BITMASK);
 }
 
-//wait for SSP receive FIFO to be not empty
-static inline bool waitForReceiveNotEmpty(LPC_SSP_T* sspDevice)
+// Wait for transmitter empty returning true if timed out
+//static inline bool waitForTxEmpty(LPC_SSP_TypeDef* sspDevice)
+bool HardwareSPI::waitForTxEmpty()
 {
-    uint32_t timeout = SPI_TIMEOUT;
-    
-    //Bit 2 - RNE (Receive Not Empty) - This bit is 0 if the Receive FIFO is empty
-    while( !(sspDevice->SR & SR_RNE) )
-    {
-        if (--timeout == 0)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-
-//SD: added function. check if TX FIFO is not full: return true if timed out
-static inline bool waitForTxEmpty_timeout(LPC_SSP_T *ssp, uint32_t timeout) {
-    while (!(ssp->SR & (1<<1)) ) // TNF = 0 if full
+    int timeout = SPI_TIMEOUT;
+    while (!(ssp->SR & SR_TFE) ) // TNF = 0 if full
     {
         if (!timeout--)
         {
@@ -94,30 +91,6 @@ static inline bool waitForTxEmpty_timeout(LPC_SSP_T *ssp, uint32_t timeout) {
         }
     }
     return false;
-    
-}
-
-//SD as ssp_readable but with timeout for sharedSPI: returns true if timed out
-static inline bool ssp_readable_timeout(LPC_SSP_T *ssp, uint32_t timeout) {
-    while ( !(ssp->SR & (1 << 2)) )
-    {
-        if (--timeout == 0) return true;
-    }
-    return false;
-}
-
-
-// Wait for transmitter empty returning true if timed out
-//static inline bool waitForTxEmpty(LPC_SSP_TypeDef* sspDevice)
-bool HardwareSPI::waitForTxEmpty()
-{
-    return waitForTxEmpty_timeout(selectedSSPDevice, SPI_TIMEOUT);
-}
-
-// Wait for receive data available returning true if timed out
-static inline bool waitForRxReady(LPC_SSP_T* sspDevice)
-{
-    return ssp_readable_timeout(sspDevice, SPI_TIMEOUT);
 }
 
 static inline CHIP_SSP_BITS_T getSSPBits(uint8_t bits)
@@ -148,107 +121,104 @@ static inline CHIP_SSP_CLOCK_MODE_T getSSPMode(uint8_t spiMode)
 }
 
 
-void ssp0_dma_interrupt()
+void ssp0DmaInterrupt()
 {
-    HardwareSPI *s = (HardwareSPI *) getSSPDevice(SSP0);
-    s->interrupt();
+    Chip_SSP_DMA_Disable(LPC_SSP0);
+    HardwareSPI *s = &HardwareSPI::SSP0;
+    if (s->callback) s->callback(s);
 }
 
-void ssp1_dma_interrupt()
+void ssp1DmaInterrupt()
 {
-    HardwareSPI *s = (HardwareSPI *) getSSPDevice(SSP1);
-    s->interrupt();
+    Chip_SSP_DMA_Disable(LPC_SSP1);
+    HardwareSPI *s = &HardwareSPI::SSP1;
+    if (s->callback) s->callback(s);
 }
 
-void HardwareSPI::interrupt()
+// Called on completion of a blocking transfer
+void transferComplete(HardwareSPI *spiDevice) noexcept
 {
-    dmaTransferComplete = true;
-
     BaseType_t mustYield=false;
-    xSemaphoreGiveFromISR(spiTransferSemaphore, &mustYield);
+    xSemaphoreGiveFromISR(spiDevice->spiTransferSemaphore, &mustYield);
 }
+
+void HardwareSPI::configurePins(bool hardwareCS)
+{
+    // Attach the SSP module to the I/O pins, note that SSP0 can use pins either on port 0 or port 1
+    for(int i = 0; i < (hardwareCS ? 4 : 3); i++)
+    {
+        uint8_t port = pins[i] >> 5;
+        uint8_t pin = pins[i] & 0x1f;
+        Chip_IOCON_PinMux(LPC_IOCON, port, pin, IOCON_MODE_INACT, (port == 0 ? IOCON_FUNC2 : IOCON_FUNC3));
+    }
+}
+
+void HardwareSPI::configureBaseDevice()
+{
+    InitialiseDMA();
+    if(ssp == LPC_SSP0)
+    {
+        Chip_Clock_SetPCLKDiv(SYSCTL_PCLK_SSP0, SYSCTL_CLKDIV_1); //set SPP peripheral clock to PCLK/1
+        Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_SSP0); //enable power and clocking
+        AttachDMAChannelInterruptHandler(ssp0DmaInterrupt, DMA_SSP0_RX); //attach to the RX complete DMA Intettrupt handler
+    }
+    else if (ssp == LPC_SSP1)
+    {
+        Chip_Clock_SetPCLKDiv(SYSCTL_PCLK_SSP1, SYSCTL_CLKDIV_1); //set SPP peripheral clock to PCLK/1
+        Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_SSP1); //enable power and clocking
+        AttachDMAChannelInterruptHandler(ssp1DmaInterrupt, DMA_SSP1_RX); //attach to the RX complete DMA Intettrupt handler
+    }
+}
+
+void HardwareSPI::configureMode(uint32_t deviceMode, uint32_t bits, uint32_t clockMode, uint32_t bitRate)
+{
+    Chip_SSP_Set_Mode(ssp, deviceMode);
+    Chip_SSP_SetFormat(ssp, bits, SSP_FRAMEFORMAT_SPI, clockMode);
+    Chip_SSP_SetBitRate(ssp, bitRate);
+    Chip_SSP_DMA_Disable(ssp);
+    Chip_SSP_Enable(ssp);    
+}
+
+void HardwareSPI::configureDevice(uint32_t deviceMode, uint32_t bits, uint32_t clockMode, uint32_t bitRate, bool hardwareCS)
+{
+    disable();
+    Chip_SSP_Disable(ssp);
+    configureBaseDevice();
+    configurePins(hardwareCS);
+    configureMode(deviceMode, bits, clockMode, bitRate);
+}
+
 
 //setup the master device.
 void HardwareSPI::setup_device(const struct sspi_device *device)
 {
-    
-    Chip_SSP_Disable(selectedSSPDevice);
-    
-    if(needInit)
+    disable();
+    Chip_SSP_Disable(ssp);
+    if (needInit)
     {
-        InitialiseDMA();
-        
-        if(selectedSSPDevice == LPC_SSP0)
-        {
-            Chip_Clock_SetPCLKDiv(SYSCTL_PCLK_SSP0, SYSCTL_CLKDIV_1); //set SPP peripheral clock to PCLK/1
-            Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_SSP0); //enable power and clocking
-            
-            GPIO_PinFunction(SPI0_SCK, SPI0_FUNCTION);   /* Configure the Pinfunctions for SPI */
-            GPIO_PinFunction(SPI0_MOSI,SPI0_FUNCTION);
-            GPIO_PinFunction(SPI0_MISO,SPI0_FUNCTION);
-            
-            GPIO_PinDirection(SPI0_SCK, OUTPUT);        /* Configure SCK,MOSI,SSEl as Output and MISO as Input */
-            GPIO_PinDirection(SPI0_MOSI,OUTPUT);
-            GPIO_PinDirection(SPI0_MISO,INPUT);
-
-            AttachDMAChannelInterruptHandler(ssp0_dma_interrupt, DMA_SSP0_RX); //attach to the RX complete DMA Intettrupt handler
-        }
-        else if (selectedSSPDevice == LPC_SSP1)
-        {
-            Chip_Clock_SetPCLKDiv(SYSCTL_PCLK_SSP1, SYSCTL_CLKDIV_1); //set SPP peripheral clock to PCLK/1
-            Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_SSP1); //enable power and clocking
-            
-            GPIO_PinFunction(SPI1_SCK, SPI1_FUNCTION);   /* Configure the Pinfunctions for SPI */
-            GPIO_PinFunction(SPI1_MOSI,SPI1_FUNCTION);
-            GPIO_PinFunction(SPI1_MISO,SPI1_FUNCTION);
-            
-            GPIO_PinDirection(SPI1_SCK, OUTPUT);        /* Configure SCK,MOSI,SSEl as Output and MISO as Input */
-            GPIO_PinDirection(SPI1_MOSI,OUTPUT);
-            GPIO_PinDirection(SPI1_MISO,INPUT);
-            
-            AttachDMAChannelInterruptHandler(ssp1_dma_interrupt, DMA_SSP1_RX); //attach to the RX complete DMA Intettrupt handler
-        }
-        
+        configureBaseDevice();
+        configurePins(false);
         needInit = false;
     }
-
-    Chip_SSP_Set_Mode(selectedSSPDevice, SSP_MODE_MASTER);
-    Chip_SSP_SetFormat(selectedSSPDevice, getSSPBits(device->bitsPerTransferControl), SSP_FRAMEFORMAT_SPI, getSSPMode(device->spiMode));
-    Chip_SSP_SetBitRate(selectedSSPDevice, device->clockFrequency);
-    Chip_SSP_Enable(selectedSSPDevice);
-
-    
-    //spi_format(selectedSSPDevice, device->bitsPerTransferControl, device->spiMode, 0); //Set the bits, set Mode 0, and set as Master
-    //spi_frequency(selectedSSPDevice, device->clockFrequency);
-    
-    clearSSPTimeout(selectedSSPDevice);
+    configureMode(SSP_MODE_MASTER, getSSPBits(device->bitsPerTransferControl), getSSPMode(device->spiMode), device->clockFrequency);
 }
 
 
-HardwareSPI::HardwareSPI(LPC_SSP_T *sspDevice):needInit(true)
+HardwareSPI::HardwareSPI(LPC_SSP_T *sspDevice, Pin* spiPins):needInit(true), pins(spiPins)
 {
-    selectedSSPDevice = sspDevice;
-    dmaTransferComplete = false;
-    
+    ssp = sspDevice;    
     spiTransferSemaphore = xSemaphoreCreateBinary();
 }
 
-spi_status_t HardwareSPI::sspi_transceive_packet_dma(const uint8_t *tx_data, uint8_t *rx_data, size_t len, DMA_TransferWidth_t transferWidth)
-{
-    dmaTransferComplete = false;
-    
-    uint8_t dontCareRX = 0;
-    uint8_t dontCareTX = 0xFF;
+void HardwareSPI::startTransfer(const uint8_t *tx_data, uint8_t *rx_data, size_t len, SPICallbackFunction ioComplete)
+{    
+    static uint8_t dontCareRX = 0;
+    static uint8_t dontCareTX = 0xFF;
     
     DMA_Channel_t chanRX;
     DMA_Channel_t chanTX;
     
-    if(selectedSSPDevice == nullptr) return SPI_ERROR_TIMEOUT;//todo: just return timeout error if null
-
-    
-    selectedSSPDevice->DMACR = SSP_DMA_TX | SSP_DMA_RX; //enable DMA
-
-    if(selectedSSPDevice == LPC_SSP0)
+    if(ssp == LPC_SSP0)
     {
         chanRX = DMA_SSP0_RX;
         chanTX = DMA_SSP0_TX;
@@ -276,22 +246,19 @@ spi_status_t HardwareSPI::sspi_transceive_packet_dma(const uint8_t *tx_data, uin
     {
         SspDmaTxTransferNI(chanTX, &dontCareTX, len); //No Increment mode, send 0xFF
     }
-    
+    callback = ioComplete;
+    Chip_SSP_DMA_Enable(ssp);
+}
+
+spi_status_t HardwareSPI::sspi_transceive_packet(const uint8_t *tx_data, uint8_t *rx_data, size_t len)
+{
+    startTransfer(tx_data, rx_data, len, transferComplete);
     spi_status_t ret = SPI_OK;
-    //while not complete
-    //while(dmaTransferComplete == false)
     const TickType_t xDelay = SPITimeoutMillis / portTICK_PERIOD_MS; //timeout
     if( xSemaphoreTake(spiTransferSemaphore, xDelay) == pdFALSE) // timed out or failed to take semaphore
     {
         ret = SPI_ERROR_TIMEOUT;
     }
-    selectedSSPDevice->DMACR &= ~(SSP_DMA_RX | SSP_DMA_TX); //disable DMA
-
-    
+    Chip_SSP_DMA_Disable(ssp);
     return ret;
-}
-
-spi_status_t HardwareSPI::sspi_transceive_packet(const uint8_t *tx_data, uint8_t *rx_data, size_t len)
-{
-    return sspi_transceive_packet_dma(tx_data, rx_data, len, DMA_WIDTH_BYTE);
 }
