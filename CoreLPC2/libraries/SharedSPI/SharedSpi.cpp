@@ -21,11 +21,14 @@ SPI *getSSPDevice(SSPChannel channel)
     }
 }
 
-void sspi_setPinsForChannel(SSPChannel channel, Pin sck, Pin miso, Pin mosi)
+void sspi_setPinsForChannel(SSPChannel channel, Pin sck, Pin miso, Pin mosi, Pin cs)
 {
-    if(channel == SWSPI0)
+    switch(channel)
     {
-        swspi0.InitPins(sck, miso, mosi);
+        case SSP0: HardwareSPI::SSP0.InitPins(sck, miso, mosi, cs); break;
+        case SSP1: break; // SSP1 pins are fixed
+        case SWSPI0: swspi0.InitPins(sck, miso, mosi); break;
+        default: break;
     }
 }
 

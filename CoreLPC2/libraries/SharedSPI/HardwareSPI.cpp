@@ -13,8 +13,7 @@
 #define SPI_TIMEOUT       15000
 // Pin usage, SSP1 has a fixed set of pins SSP0 has two alternatives for each pin
 static constexpr Pin SSP1Pins[] = {SPI1_SCK, SPI1_MISO, SPI1_MOSI, SPI1_SSEL};
-//static Pin SSP0Pins[] = {SPI0_SCK, SPI0_MISO, SPI0_MOSI, SPI0_SSEL};
-static Pin SSP0Pins[] = {SPI0_SCK, SPI0_MISO, P1_24, SPI0_SSEL};
+static Pin SSP0Pins[] = {SPI0_SCK, SPI0_MISO, SPI0_MOSI, SPI0_SSEL};
 
 //SSP Status Register Bits
 constexpr uint8_t SR_TFE = (1<<0); //Transmit FIFO Empty. This bit is 1 is the Transmit FIFO is empty, 0 if not.
@@ -151,6 +150,17 @@ void HardwareSPI::configurePins(bool hardwareCS)
         uint8_t pin = pins[i] & 0x1f;
         Chip_IOCON_PinMux(LPC_IOCON, port, pin, IOCON_MODE_INACT, (port == 0 ? IOCON_FUNC2 : IOCON_FUNC3));
     }
+}
+
+void HardwareSPI::InitPins(Pin sck, Pin miso, Pin mosi, Pin cs)
+{
+    if(ssp == LPC_SSP0)
+    {
+        SSP0Pins[0] = sck;
+        SSP0Pins[1] = miso;
+        SSP0Pins[2] = mosi;
+        SSP0Pins[3] = cs;        
+    }    
 }
 
 void HardwareSPI::configureBaseDevice()

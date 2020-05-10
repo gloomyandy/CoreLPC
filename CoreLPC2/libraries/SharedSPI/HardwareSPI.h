@@ -23,6 +23,7 @@ public:
     void configureDevice(uint32_t deviceMode, uint32_t bits, uint32_t clockMode, uint32_t bitRate, bool hardwareCS);
     void disable();
     void startTransfer(const uint8_t *tx_data, uint8_t *rx_data, size_t len, SPICallbackFunction ioComplete);
+    void InitPins(Pin sck, Pin miso, Pin mosi, Pin cs);
 
     static HardwareSPI SSP0;
     static HardwareSPI SSP1;
