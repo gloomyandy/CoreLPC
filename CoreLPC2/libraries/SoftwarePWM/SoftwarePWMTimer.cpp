@@ -18,11 +18,22 @@
 
 #include "SoftwarePWMTimer.h"
 #include "SoftwarePWM.h"
-
-
+#ifdef LPC_DEBUG
+#include "Platform.h"
+#include "RepRap.h"
+#include "StepTimer.h"
+static uint32_t pwmInts = 0;
+static uint32_t pwmCalls = 0;
+static uint32_t pwmMinTime = 0xffffffff;
+static uint32_t pwmMaxTime = 0;
+#endif
 SoftwarePWMTimer softwarePWMTimer;
 
+#ifdef NEWCODE
+SoftwarePWMTimer::SoftwarePWMTimer() : ticksPerMicrosecond(Chip_Clock_GetPeripheralClockRate(SYSCTL_PCLK_RIT)/1000000)
+#else
 SoftwarePWMTimer::SoftwarePWMTimer()
+#endif
 {
     head = nullptr;
 
@@ -46,6 +57,9 @@ inline void SoftwarePWMTimer::ticker_set_interrupt(ticker_event_t *obj, bool inI
 #ifdef LPC_DEBUG
         obj->PWM->IncrementLateCount(); // scheduled late
 #endif
+#ifdef NEWCODE
+        obj->timestamp = TickerRead() + 10*TicksPerMicrosecond();
+#else
         if(inInterrupt)
         {
             //called from the ticker interrupt, schedule a little later to allow lower priority ints to run
@@ -55,6 +69,7 @@ inline void SoftwarePWMTimer::ticker_set_interrupt(ticker_event_t *obj, bool inI
         {
             obj->timestamp = TickerRead() + 1; //next timer tick
         }
+#endif
     }
 
     ticker_clear_interrupt();
@@ -79,12 +94,23 @@ inline void SoftwarePWMTimer::ticker_clear_interrupt(void)
 extern "C" void RIT_IRQHandler(void) __attribute__ ((hot));
 void RIT_IRQHandler(void)
 {
+#ifdef LPC_DEBUG
+    const uint32_t startTime = StepTimer::GetTimerTicks(); 
+#endif   
+
     softwarePWMTimer.Interrupt();
+#ifdef LPC_DEBUG
+    const uint32_t dt = StepTimer::GetTimerTicks() - startTime;
+    if (dt < pwmMinTime)
+        pwmMinTime = dt;
+    else if (dt > pwmMaxTime)
+        pwmMaxTime = dt;
+    pwmInts++;
+#endif
 }
 
 void SoftwarePWMTimer::Interrupt()
 {
-    
     ticker_clear_interrupt();
 
     /* Go through all the pending TimerEvents */
@@ -103,6 +129,9 @@ void SoftwarePWMTimer::Interrupt()
             //      point to the following one and execute its handler
             ticker_event_t *p = head;
             head = head->next;
+#ifdef LPC_DEBUG
+            pwmCalls++;
+#endif
 
             p->PWM->Interrupt(); // NOTE: the handler can set new events
         }
@@ -121,6 +150,9 @@ void SoftwarePWMTimer::Interrupt()
 void SoftwarePWMTimer::ScheduleEventInMicroseconds(ticker_event_t *obj, uint32_t microseconds, SoftwarePWM *softPWMObject)
 {
     //convert microseconds into timer ticks
+#ifdef NEWCODE
+    if (microseconds < 10) microseconds = 10;
+#endif
     uint32_t timestamp = TickerRead() + microseconds * TicksPerMicrosecond();
     ticker_insert_event(obj, timestamp, softPWMObject);
 }
@@ -198,3 +230,14 @@ void SoftwarePWMTimer::RemoveEvent(ticker_event_t *obj)
 
     cpu_irq_restore(flags);
 }
+
+#ifdef LPC_DEBUG
+void SoftwarePWMTimer::Diagnostics(MessageType mtype) noexcept
+{
+	reprap.GetPlatform().MessageF(mtype, "Interrupts: %u; Calls %u; fastest: %uuS; slowest %uuS\n", (unsigned)pwmInts, (unsigned)pwmCalls, (unsigned)pwmMinTime, (unsigned)pwmMaxTime);
+	pwmMinTime = UINT32_MAX;
+	pwmMaxTime = 0;
+    pwmInts = 0;
+    pwmCalls = 0;
+}
+#endif

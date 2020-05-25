@@ -21,6 +21,9 @@
 
 #include "Core.h"
 #include "chip.h"
+#ifdef LPC_DEBUG
+#include "MessageType.h"
+#endif
 
 class SoftwarePWM; //Fwd decl
 
@@ -45,7 +48,15 @@ public:
     void Interrupt();
 
     inline uint32_t TickerRead(){ return LPC_RITIMER->COUNTER; };
+#ifdef NEWCODE
+    inline uint32_t TicksPerMicrosecond(){ return ticksPerMicrosecond; };
+#else
     inline uint32_t TicksPerMicrosecond(){ return Chip_Clock_GetPeripheralClockRate(SYSCTL_PCLK_RIT)/1000000; };
+#endif
+
+#ifdef LPC_DEBUG
+    void Diagnostics(MessageType mtype) noexcept;
+#endif
 
 private:
     void ticker_set_interrupt(ticker_event_t *obj, bool inInterrupt=false);
@@ -53,6 +64,9 @@ private:
     void ticker_clear_interrupt(void);
     void ticker_insert_event(ticker_event_t *obj, uint32_t timestamp, SoftwarePWM *softPWMObject);
     ticker_event_t *head;
+#ifdef NEWCODE
+    const uint32_t ticksPerMicrosecond;
+#endif
 };
 
 

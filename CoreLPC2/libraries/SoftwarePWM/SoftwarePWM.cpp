@@ -61,7 +61,6 @@ void SoftwarePWM::SetDutyCycle(float duty)
 {
     uint32_t ot = (uint32_t) ((float)(period * duty));
     if(ot > period) ot = period;
-    
     onTime = ot; //update the Duty
 }
 
