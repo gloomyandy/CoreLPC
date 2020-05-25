@@ -11,39 +11,29 @@ SoftwarePWM::SoftwarePWM(Pin softPWMPin)
     SetFrequency(1); //default to 1Hz
     
     pwmRunning = false;
-#ifdef LPC_DEBUG
-    lateCount = 0;
-#endif
     pin = softPWMPin;
     pinMode(pin, OUTPUT_LOW);
-    state = PWM_OFF;
-
+    chan = -1;
 }
-
-#ifdef LPC_DEBUG
-void SoftwarePWM::IncrementLateCount()
-{
-    lateCount++;
-}
-#endif
 
 void SoftwarePWM::Enable()
 {
-    pinMode(pin, OUTPUT_LOW);
-    state = PWM_OFF;
-    
-    pwmRunning = true;
-    
-    ScheduleEvent(1); //Schedule to start the PWM
-
+    debugPrintf("Calling enable\n");
+    chan = softwarePWMTimer.enable(pin, period, period);
+    debugPrintf("Enable returns %d\n", chan);
+    if (chan >= 0)
+    {
+        pinMode(pin, OUTPUT_LOW);
+        pwmRunning = true;
+    }
 }
+
 void SoftwarePWM::Disable()
 {
-    softwarePWMTimer.RemoveEvent(&event); //remove event from the ticker
-
+    debugPrintf("Calling disable chan %d\n", chan);
+    if (chan >= 0) 
+        softwarePWMTimer.disable(chan);
     pinMode(pin, OUTPUT_LOW);
-    state = PWM_OFF;
-    
     pwmRunning = false;
 }
 
@@ -53,7 +43,7 @@ void SoftwarePWM::SetFrequency(uint16_t freq)
     frequency = freq;
     //find the period in us
     period = 1000000/freq;
-    
+    onTime = 0;    
 }
 
 
@@ -61,75 +51,23 @@ void SoftwarePWM::SetDutyCycle(float duty)
 {
     uint32_t ot = (uint32_t) ((float)(period * duty));
     if(ot > period) ot = period;
-    onTime = ot; //update the Duty
-}
-
-//PWM On phase
-void SoftwarePWM::PWMOn()
-{
-    state = PWM_ON;
-    pinMode(pin, OUTPUT_HIGH);
-}
-//PWM Off Phase
-void SoftwarePWM::PWMOff()
-{
-    state = PWM_OFF;
-    pinMode(pin, OUTPUT_LOW);
-}
-
-
-//Schedule next even in now+timeout microseconds
-inline void SoftwarePWM::ScheduleEvent(uint32_t timeout)
-{
-    softwarePWMTimer.ScheduleEventInMicroseconds(&event, timeout, this);
-    nextRun = event.timestamp;
+    if (onTime != ot)
+    {
+        onTime = ot; //update the Duty
+        if (chan >= 0) 
+        {
+            if (onTime == 0)
+                softwarePWMTimer.adjustOnOffTime(chan, period, period, 0, 0);
+            else if (onTime == period)
+                softwarePWMTimer.adjustOnOffTime(chan, period, period, 1, 1);
+            else
+                softwarePWMTimer.adjustOnOffTime(chan, onTime, period - onTime, 1, 0);
+        }
+    }
 }
 
 void SoftwarePWM::Check()
 {
-    if(pwmRunning == true && (int)(nextRun - softwarePWMTimer.TickerRead()) < -4*(int)softwarePWMTimer.TicksPerMicrosecond()) // is it more than 4us overdue?
-    {
-        //PWM is overdue, has it stopped running ?
-        //TODO:: check if ticker int has not fired recently.
-        
-        PWMOff(); // Disable the PWM for protection
-        debugPrintf("PWM Overdue! (%d.%d)\n", (pin >> 5), (pin & 0x1f));
-        
-    }
-}
-
-void SoftwarePWM::Interrupt()
-{
-    //handle 100% on/off
-    if(onTime==0)
-    {
-        PWMOff();
-        //schedule next int in +period
-        ScheduleEvent(period);
-        return;
-    }
-    else if(onTime==period)
-    {
-        PWMOn();
-        //schedule next int in +period
-        ScheduleEvent(period);
-        return;
-    }
-    
-    
-    if(state==PWM_OFF)
-    {
-        //last state was off, turn on
-        PWMOn();
-        ScheduleEvent(onTime);
-    }
-    else
-    {
-        //last state was On, turn off
-        PWMOff();
-        ScheduleEvent(period-onTime);
-    }
 
 }
-
 

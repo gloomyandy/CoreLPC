@@ -25,51 +25,31 @@
 #include "MessageType.h"
 #endif
 
-class SoftwarePWM; //Fwd decl
-
-typedef struct ticker_event_s
-{
-    uint32_t timestamp;
-    SoftwarePWM *PWM;
-    struct ticker_event_s *next;
-} ticker_event_t;
-
-
-
 class SoftwarePWMTimer
 {
     
     
 public:
     SoftwarePWMTimer();
-    
-    void ScheduleEventInMicroseconds(ticker_event_t *obj, uint32_t microseconds, SoftwarePWM *softPWMObject);
-    void RemoveEvent(ticker_event_t *obj);
-    void Interrupt();
-
-    inline uint32_t TickerRead(){ return LPC_RITIMER->COUNTER; };
-#ifdef NEWCODE
-    inline uint32_t TicksPerMicrosecond(){ return ticksPerMicrosecond; };
-#else
-    inline uint32_t TicksPerMicrosecond(){ return Chip_Clock_GetPeripheralClockRate(SYSCTL_PCLK_RIT)/1000000; };
-#endif
+    int enable(Pin pin, uint32_t onTime, uint32_t offTime);
+    void disable(int chan);
+    void adjustOnOffTime(int chan, uint32_t onTime, uint32_t offTime, uint32_t onVal, uint32_t offVal);
 
 #ifdef LPC_DEBUG
-    void Diagnostics(MessageType mtype) noexcept;
+    void Diagnostics(MessageType mtype);
 #endif
 
-private:
-    void ticker_set_interrupt(ticker_event_t *obj, bool inInterrupt=false);
-    void ticker_disable_interrupt(void);
-    void ticker_clear_interrupt(void);
-    void ticker_insert_event(ticker_event_t *obj, uint32_t timestamp, SoftwarePWM *softPWMObject);
-    ticker_event_t *head;
-#ifdef NEWCODE
-    const uint32_t ticksPerMicrosecond;
-#endif
 };
 
 
 extern SoftwarePWMTimer softwarePWMTimer;
+
+#ifdef LPC_DEBUG
+extern uint32_t pwmInts;
+extern uint32_t pwmCalls;
+extern uint32_t pwmMinTime;
+extern uint32_t pwmMaxTime;
+extern uint32_t pwmAdjust;
+#endif
 
 #endif
