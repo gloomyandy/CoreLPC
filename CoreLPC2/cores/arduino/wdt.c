@@ -20,7 +20,7 @@ extern "C" {
 #define WDEN_SBIT 0
 #define WDRESET_SBIT 1
     
-    
+uint32_t minWDTValue = 0xffffffff;  
     
 void wdt_init(uint32_t s_counter){
 
@@ -46,6 +46,9 @@ void wdt_init(uint32_t s_counter){
     NVIC_SetPriority(WDT_IRQn, 1);
 
     wdt_restart(WDT); //feed the watchdog
+#ifdef LPC_DEBUG    
+    minWDTValue = 0xffffffff;
+#endif
 }
 
 void wdt_restart(uint8_t wdt) //compat with RRF wdt not used, but maintain compat with RRF
@@ -53,7 +56,11 @@ void wdt_restart(uint8_t wdt) //compat with RRF wdt not used, but maintain compa
     //Feed the hungry hungry watchdog
     //0xAA followed by 0x55 to WDFEED reloads the Watchdog timer with the value contained in WDTC
     irqflags_t flags = cpu_irq_save();
-
+#ifdef LPC_DEBUG    
+    // keep track of how low the wdt is getting
+    if (LPC_WWDT->TV < minWDTValue)
+        minWDTValue = LPC_WWDT->TV;
+#endif
     LPC_WWDT->FEED = 0xAA;
     LPC_WWDT->FEED = 0x55;
     cpu_irq_restore(flags);

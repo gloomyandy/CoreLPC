@@ -253,7 +253,7 @@ void SoftwarePWMTimer::Diagnostics(MessageType mtype)
     for(int i = 0; i < MaxPWMPins; i++)
     {
         if (States[i].enabled)
-            reprap.GetPlatform().MessageF(mtype, "state %d next %u on %u off %u pin %d.%d\n", i, States[i].nextEvent - now, States[i].onOffTimes[States[i].onOffBuffer][1], States[i].onOffTimes[States[i].onOffBuffer][0], (States[i].pin >> 5), (States[i].pin & 0x1f) );
+            reprap.GetPlatform().MessageF(mtype, "state %d next %u on %u off %u pin %d.%d\n", i, (unsigned)(States[i].nextEvent - now), (unsigned)States[i].onOffTimes[States[i].onOffBuffer][1], (unsigned)States[i].onOffTimes[States[i].onOffBuffer][0], (States[i].pin >> 5), (States[i].pin & 0x1f) );
     }
     LPC_RITIMER->CTRL |= RIT_CTRL_TEN;
 }
