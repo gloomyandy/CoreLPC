@@ -18,18 +18,24 @@
 
 #include <stdlib.h>
 #include <FreeRTOS.h>
-
+#include <string.h>
 
 //Using Heap5.c from FreeROTS. Needs to be setup before using new
 
 void *operator new(size_t size)
 {
-    return pvPortMalloc(size);
+    void *mem = pvPortMalloc(size);
+    if (mem != nullptr)
+        memset(mem, 0, size);
+    return mem;
 }
 
 void *operator new[](size_t size)
 {
-    return pvPortMalloc(size);
+    void *mem = pvPortMalloc(size);
+    if (mem != nullptr)
+        memset(mem, 0, size);
+    return mem;
 }
 
 void operator delete(void * ptr)
