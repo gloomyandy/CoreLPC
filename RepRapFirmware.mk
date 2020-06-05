@@ -25,7 +25,7 @@ endif
 
 #TMC22XX support?
 ifeq ($(TMC22XX), true)
-	RRF_SRC_DIRS += Movement/StepperDrivers LPC/Movement/StepperDrivers
+	RRF_SRC_DIRS += LPC/Movement/StepperDrivers Movement/StepperDrivers
 endif
 
 #Find the c and cpp source files
