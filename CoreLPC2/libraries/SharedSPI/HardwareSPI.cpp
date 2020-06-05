@@ -137,8 +137,9 @@ extern "C"  void SSP1_IRQHandler(void)
 // Called on completion of a blocking transfer
 void transferComplete(HardwareSPI *spiDevice) noexcept
 {
-    BaseType_t mustYield=false;
-    xSemaphoreGiveFromISR(spiDevice->spiTransferSemaphore, &mustYield);
+    BaseType_t higherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(spiDevice->waitingTask, &higherPriorityTaskWoken);
+    portYIELD_FROM_ISR(higherPriorityTaskWoken);
 }
 
 void HardwareSPI::configurePins(bool hardwareCS)
@@ -219,7 +220,6 @@ void HardwareSPI::setup_device(const struct sspi_device *device)
 HardwareSPI::HardwareSPI(LPC_SSP_T *sspDevice, Pin* spiPins):needInit(true), pins(spiPins)
 {
     ssp = sspDevice;    
-    spiTransferSemaphore = xSemaphoreCreateBinary();
 }
 
 void HardwareSPI::startTransfer(const uint8_t *tx_data, uint8_t *rx_data, size_t len, SPICallbackFunction ioComplete)
@@ -264,10 +264,11 @@ void HardwareSPI::startTransfer(const uint8_t *tx_data, uint8_t *rx_data, size_t
 
 spi_status_t HardwareSPI::sspi_transceive_packet(const uint8_t *tx_data, uint8_t *rx_data, size_t len)
 {
+    waitingTask = xTaskGetCurrentTaskHandle();
     startTransfer(tx_data, rx_data, len, transferComplete);
     spi_status_t ret = SPI_OK;
     const TickType_t xDelay = SPITimeoutMillis / portTICK_PERIOD_MS; //timeout
-    if( xSemaphoreTake(spiTransferSemaphore, xDelay) == pdFALSE) // timed out or failed to take semaphore
+    if( ulTaskNotifyTake(pdTRUE, xDelay) == 0) // timed out
     {
         ret = SPI_ERROR_TIMEOUT;
     }

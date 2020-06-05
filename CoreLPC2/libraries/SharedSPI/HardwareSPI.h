@@ -9,7 +9,7 @@
 #include "DMA.h"
 
 #include "FreeRTOS.h"
-#include "semphr.h"
+#include "task.h"
 
 extern "C" void SSP0_IRQHandler(void);
 extern "C" void SSP1_IRQHandler(void);
@@ -36,7 +36,7 @@ private:
     bool needInit;
     Pin * const pins;
     SPICallbackFunction callback;
-    SemaphoreHandle_t spiTransferSemaphore;
+    TaskHandle_t waitingTask;
 
     void configurePins(bool hardwareCS);
     void configureMode(uint32_t deviceMode, uint32_t bits, uint32_t clockMode, uint32_t bitRate);
