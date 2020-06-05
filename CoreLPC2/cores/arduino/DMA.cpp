@@ -45,51 +45,43 @@ uint8_t DMAGetChannelNumber(DMA_Channel_t dma_channel)
 }
 
 
-//Attach DMA Handler for channel
+// Attach DMA Handler for channel. Can be nullptr for no call handler, a function to call
+// or the special value DMA_USE_DEVICE_INTERRUPT which will generate a new interrupt for
+// the base device. This allows different interrupt levels to be used for
+// the general DMA device and for the completion interrupt of the actual hardware device.
 void AttachDMAChannelInterruptHandler(DMACallbackFunction callback, DMA_Channel_t channel)
 {
     dma_callbacks[channel] = callback;
 }
 
+static void inline checkAndCallHandler(uint32_t chan, IRQn_Type intHandler)
+{
+    // Did this chan generate an event?
+    if (Chip_GPDMA_Interrupt(LPC_GPDMA, dma_channels[chan]) == SUCCESS) //also clears the interrupt
+    {
+        if (dma_callbacks[chan] == DMA_USE_DEVICE_INTERRUPT)
+            NVIC_SetPendingIRQ(intHandler);
+        else if (dma_callbacks[chan] != nullptr)
+            dma_callbacks[chan]();
+    }
+}
 
 //DMA Interrupt Handler
 extern "C"  void DMA_IRQHandler(void)
 {
     //SSP0 Channels
-    if (Chip_GPDMA_Interrupt(LPC_GPDMA, dma_channels[DMA_SSP0_RX]) == SUCCESS) //also clears the interrupt
-    {
-        if(dma_callbacks[DMA_SSP0_RX] != nullptr) dma_callbacks[DMA_SSP0_RX]();
-    }
+    checkAndCallHandler(DMA_SSP0_RX, SSP0_IRQn);
+    checkAndCallHandler(DMA_SSP0_TX, SSP0_IRQn);
     
-    if (Chip_GPDMA_Interrupt(LPC_GPDMA, dma_channels[DMA_SSP0_TX]) == SUCCESS) //also clears the interrupt
-    {
-        if(dma_callbacks[DMA_SSP0_TX] != nullptr) dma_callbacks[DMA_SSP0_TX]();
-    }
-
-
     //SSP1 Channels
-    if (Chip_GPDMA_Interrupt(LPC_GPDMA, dma_channels[DMA_SSP1_RX]) == SUCCESS) //also clears the interrupt
-    {
-        if(dma_callbacks[DMA_SSP1_RX] != nullptr) dma_callbacks[DMA_SSP1_RX]();
-    }
+    checkAndCallHandler(DMA_SSP1_RX, SSP1_IRQn);
+    checkAndCallHandler(DMA_SSP1_TX, SSP1_IRQn);
 
-    if (Chip_GPDMA_Interrupt(LPC_GPDMA, dma_channels[DMA_SSP1_TX]) == SUCCESS) //also clears the interrupt
-    {
-        if(dma_callbacks[DMA_SSP1_TX] != nullptr) dma_callbacks[DMA_SSP1_TX]();
-    }
-    
     //Timer1 MR0 Match channel
-    if (Chip_GPDMA_Interrupt(LPC_GPDMA, dma_channels[DMA_TIMER_MAT1_0]) == SUCCESS) //also clears the interrupt
-    {
-        if(dma_callbacks[DMA_TIMER_MAT1_0] != nullptr) dma_callbacks[DMA_TIMER_MAT1_0]();
-    }
+    checkAndCallHandler(DMA_TIMER_MAT1_0, TIMER1_IRQn);
 
     //Timer3 MR0 Match channel
-    if (Chip_GPDMA_Interrupt(LPC_GPDMA, dma_channels[DMA_TIMER_MAT3_0]) == SUCCESS) //also clears the interrupt
-    {
-        if(dma_callbacks[DMA_TIMER_MAT3_0] != nullptr) dma_callbacks[DMA_TIMER_MAT3_0]();
-    }
-
+    checkAndCallHandler(DMA_TIMER_MAT3_0, TIMER3_IRQn);
 }
 
 

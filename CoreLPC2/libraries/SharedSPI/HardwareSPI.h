@@ -11,6 +11,9 @@
 #include "FreeRTOS.h"
 #include "semphr.h"
 
+extern "C" void SSP0_IRQHandler(void);
+extern "C" void SSP1_IRQHandler(void);
+
 class HardwareSPI;
 typedef void (*SPICallbackFunction)(HardwareSPI *spiDevice) noexcept;
 class HardwareSPI: public SPI
@@ -38,9 +41,9 @@ private:
     void configurePins(bool hardwareCS);
     void configureMode(uint32_t deviceMode, uint32_t bits, uint32_t clockMode, uint32_t bitRate);
     void configureBaseDevice();
-    friend void ssp0DmaInterrupt();
-    friend void ssp1DmaInterrupt();
     friend void transferComplete(HardwareSPI *spiDevice) noexcept;
+    friend void SSP0_IRQHandler(void);
+    friend void SSP1_IRQHandler(void);
 };
 
 #endif

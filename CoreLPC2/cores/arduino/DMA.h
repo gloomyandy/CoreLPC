@@ -24,6 +24,7 @@ enum DMA_TransferWidth_t : uint8_t
     DMA_WIDTH_WORD = GPDMA_WIDTH_WORD           //4 bytes
 };
 
+#define DMA_USE_DEVICE_INTERRUPT ((DMACallbackFunction)0xffffffff)
 void InitialiseDMA();
 void AttachDMAChannelInterruptHandler(DMACallbackFunction callback, DMA_Channel_t channel);
 

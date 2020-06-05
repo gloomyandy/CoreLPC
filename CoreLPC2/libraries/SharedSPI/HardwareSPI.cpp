@@ -6,6 +6,7 @@
 
 #include "FreeRTOS.h"
 #include "semphr.h"
+#include "task.h"
 
 #define SPI0_FUNCTION  PINSEL_FUNC_2 //SSP
 #define SPI1_FUNCTION  PINSEL_FUNC_2
@@ -119,20 +120,19 @@ static inline CHIP_SSP_CLOCK_MODE_T getSSPMode(uint8_t spiMode)
     return SSP_CLOCK_CPHA0_CPOL0;
 }
 
-
-void ssp0DmaInterrupt()
+extern "C"  void SSP0_IRQHandler(void)
 {
     Chip_SSP_DMA_Disable(LPC_SSP0);
     HardwareSPI *s = &HardwareSPI::SSP0;
-    if (s->callback) s->callback(s);
+    if (s->callback) s->callback(s);    
 }
 
-void ssp1DmaInterrupt()
+extern "C"  void SSP1_IRQHandler(void)
 {
     Chip_SSP_DMA_Disable(LPC_SSP1);
     HardwareSPI *s = &HardwareSPI::SSP1;
     if (s->callback) s->callback(s);
-}
+}    
 
 // Called on completion of a blocking transfer
 void transferComplete(HardwareSPI *spiDevice) noexcept
@@ -170,13 +170,15 @@ void HardwareSPI::configureBaseDevice()
     {
         Chip_Clock_SetPCLKDiv(SYSCTL_PCLK_SSP0, SYSCTL_CLKDIV_1); //set SPP peripheral clock to PCLK/1
         Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_SSP0); //enable power and clocking
-        AttachDMAChannelInterruptHandler(ssp0DmaInterrupt, DMA_SSP0_RX); //attach to the RX complete DMA Intettrupt handler
+        AttachDMAChannelInterruptHandler(DMA_USE_DEVICE_INTERRUPT, DMA_SSP0_RX); //attach to the RX complete DMA Intettrupt handler
+        NVIC_EnableIRQ(SSP0_IRQn);
     }
     else if (ssp == LPC_SSP1)
     {
         Chip_Clock_SetPCLKDiv(SYSCTL_PCLK_SSP1, SYSCTL_CLKDIV_1); //set SPP peripheral clock to PCLK/1
         Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_SSP1); //enable power and clocking
-        AttachDMAChannelInterruptHandler(ssp1DmaInterrupt, DMA_SSP1_RX); //attach to the RX complete DMA Intettrupt handler
+        AttachDMAChannelInterruptHandler(DMA_USE_DEVICE_INTERRUPT, DMA_SSP1_RX); //attach to the RX complete DMA Intettrupt handler
+        NVIC_EnableIRQ(SSP1_IRQn);
     }
 }
 
