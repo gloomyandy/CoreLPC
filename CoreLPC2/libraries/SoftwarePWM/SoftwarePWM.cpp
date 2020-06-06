@@ -18,9 +18,7 @@ SoftwarePWM::SoftwarePWM(Pin softPWMPin)
 
 void SoftwarePWM::Enable()
 {
-    debugPrintf("Calling enable\n");
     chan = softwarePWMTimer.enable(pin, period, period);
-    debugPrintf("Enable returns %d\n", chan);
     if (chan >= 0)
     {
         pinMode(pin, OUTPUT_LOW);
@@ -30,7 +28,6 @@ void SoftwarePWM::Enable()
 
 void SoftwarePWM::Disable()
 {
-    debugPrintf("Calling disable chan %d\n", chan);
     if (chan >= 0) 
         softwarePWMTimer.disable(chan);
     pinMode(pin, OUTPUT_LOW);
