@@ -32,6 +32,9 @@
 *
 * The slightly lower no of pulses required by the different versions is due to the overall
 * elapsed time being shorter (approx 19mins, 18mins and 17mins).
+* Note: The above tests were run on a system configured with no higher priority interrupts
+* active. With more recent versions of RRF the software uart runs at a higher priority in
+* this configuration the current code has a min time of 3uS and max time of 24uS.
 */
 
 #include "SoftwarePWMTimer.h"
@@ -46,20 +49,22 @@ uint32_t pwmCalls = 0;
 uint32_t pwmMinTime = 0xffffffff;
 uint32_t pwmMaxTime = 0;
 uint32_t pwmAdjust = 0;
+uint32_t pwmBad = 0;
+uint32_t pwmBigDelta = 0;
 #endif
 
 // Minimum period between interrupts - in microseconds (to prevent starving other tasks)
-static constexpr uint32_t MinimumInterruptDeltaUS = 10;
+static constexpr uint32_t MinimumInterruptDeltaUS = 20;
 
 static constexpr int MaxPWMPins = 8;
 
 typedef struct {
     uint32_t nextEvent;
-    uint32_t state;
-    uint32_t onOffBuffer;
     Pin pin;
     uint32_t onOffTimes[2][2];
-    uint32_t onOffVals[2];
+    uint8_t onOffVals[2][2];
+    uint8_t state;
+    uint8_t onOffBuffer;
     bool newTimes;
     bool enabled;
 } PWMState;
@@ -148,7 +153,8 @@ int SoftwarePWMTimer::enable(Pin pin, uint32_t onTime, uint32_t offTime)
             s.pin = pin;
             s.onOffTimes[0][0] = offTime*ticksPerMicrosecond;
             s.onOffTimes[0][1] = onTime*ticksPerMicrosecond;
-            s.onOffVals[0] = s.onOffVals[1] = 0;
+            s.onOffVals[0][0] = s.onOffVals[0][1] = 0;
+            s.onOffVals[1][0] = s.onOffVals[1][1] = 0;
             s.onOffBuffer = 0;
             s.state = 0;
             pinMode(pin, OUTPUT_LOW);
@@ -168,8 +174,8 @@ void SoftwarePWMTimer::adjustOnOffTime(int chan, uint32_t onTime, uint32_t offTi
     uint32_t buffer = s.onOffBuffer ^ 1;
     s.onOffTimes[buffer][0] = offTime*ticksPerMicrosecond;
     s.onOffTimes[buffer][1] = onTime*ticksPerMicrosecond;
-    s.onOffVals[0] = offVal;
-    s.onOffVals[1] = onVal;
+    s.onOffVals[buffer][0] = offVal;
+    s.onOffVals[buffer][1] = onVal;
     s.newTimes = true;
 }
 
@@ -193,38 +199,63 @@ void RIT_IRQHandler(void)
                 // time has expired, move to next state
                 s.state ^= 1;
                 const uint32_t newState = s.state;
-                GPIO_PinWrite(s.pin, s.onOffVals[newState]);
                 // do we need to switch to a new set of timing parameters?
                 if (s.newTimes && newState == 0)
                 {
                     s.onOffBuffer ^= 1;
                     s.newTimes = false;
                 }
+                const uint32_t buffer = s.onOffBuffer;
+                GPIO_PinWrite(s.pin, s.onOffVals[buffer][newState]);
                 // adjust next time by any drift to keep things in sync
-                delta += s.onOffTimes[s.onOffBuffer][newState];
+                delta += s.onOffTimes[buffer][newState];
+                s.nextEvent = now + delta;
                 // don't allow correction to go too far!
                 if (delta < 0)
-                    delta = s.onOffTimes[s.onOffBuffer][newState];
-                s.nextEvent = now + delta;
+                {
+                    // If delta is still -ve then this means that the call to the int handler
+                    // was so late that it has exceeded the length of time of the current pulse.
+                    // This may happen with very short pulses (ones that are less than our defined
+                    // minimum). In this case we will have set a nextEvent time that is in the past.
+                    // this is not a problem so long as the next pulse length is long enough that it
+                    // can cover the accumulated delay and allow us to catch up. This is typically
+                    // the case with a PWM signal. Obviously we can't set a next event time in the
+                    // past so we zero it here, but carry the delta forwards in nextEvent.
+                    delta = 0;
+#ifdef LPC_DEBUG
+                    pwmBigDelta++;
+#endif
+                }
 #ifdef LPC_DEBUG
                 pwmCalls++;
 #endif
             }
-            // at this point delta >= 0
+            // at this point delta >= 0, now track the smallest delta as the next target time
             if ((uint32_t)delta < next)
                 next = (uint32_t)delta;
         }
     // setup the timer for the nearest event time
-    next = now + next;
-    const uint32_t minTime = LPC_RITIMER->COUNTER + minimumTicks;
-    if ((int)(next - minTime) <= 0)
+    if (next < minimumTicks)
     {
-        next = minTime;
+        // extend the time if it is less than our minimum
+        next = minimumTicks;
 #ifdef LPC_DEBUG
         pwmAdjust++;
 #endif
     }
-    LPC_RITIMER->COMPVAL = next;
+    // Set the new compare value
+    LPC_RITIMER->COMPVAL = now + next;
+    // Check to make sure that we have not just set a time that is in the past.
+    // This can happen if the execution of this interrupt handler is delayed
+    // significantly. If this happens we reset the event time into the future
+    // and check again (just in case!).
+    while((int32_t)(LPC_RITIMER->COMPVAL - LPC_RITIMER->COUNTER) <= 0)
+    {
+#ifdef LPC_DEBUG
+        pwmBad++;
+#endif
+        LPC_RITIMER->COMPVAL = LPC_RITIMER->COUNTER + minimumTicks;
+    }
 
 #ifdef LPC_DEBUG
     const uint32_t dt = LPC_TIMER0->TC - startTime;
@@ -238,12 +269,14 @@ void RIT_IRQHandler(void)
 #ifdef LPC_DEBUG
 void SoftwarePWMTimer::Diagnostics(MessageType mtype)
 {
-    reprap.GetPlatform().MessageF(mtype, "Interrupts: %u; Calls %u; fastest: %uuS; slowest %uuS adjusted %u\n", (unsigned)pwmInts, (unsigned)pwmCalls, (unsigned)pwmMinTime, (unsigned)pwmMaxTime, (unsigned)pwmAdjust);
+    reprap.GetPlatform().MessageF(mtype, "Ints: %u; Calls %u; fast: %uuS; slow %uuS adj %u bad %u big delta %u\n", (unsigned)pwmInts, (unsigned)pwmCalls, (unsigned)pwmMinTime, (unsigned)pwmMaxTime, (unsigned)pwmAdjust, (unsigned)pwmBad, (unsigned)pwmBigDelta);
     pwmMinTime = UINT32_MAX;
     pwmMaxTime = 0;
     pwmInts = 0;
     pwmCalls = 0;
     pwmAdjust = 0;
+    pwmBad = 0;
+    pwmBigDelta = 0;
 
     reprap.GetPlatform().MessageF(mtype, "PWM Channels\n");
 
@@ -253,7 +286,7 @@ void SoftwarePWMTimer::Diagnostics(MessageType mtype)
     for(int i = 0; i < MaxPWMPins; i++)
     {
         if (States[i].enabled)
-            reprap.GetPlatform().MessageF(mtype, "state %d next %u on %u off %u pin %d.%d\n", i, (unsigned)(States[i].nextEvent - now), (unsigned)States[i].onOffTimes[States[i].onOffBuffer][1], (unsigned)States[i].onOffTimes[States[i].onOffBuffer][0], (States[i].pin >> 5), (States[i].pin & 0x1f) );
+            reprap.GetPlatform().MessageF(mtype, "state %d next %d on %u off %u pin %d.%d\n", i, (int)(States[i].nextEvent - now), (unsigned)States[i].onOffTimes[States[i].onOffBuffer][1], (unsigned)States[i].onOffTimes[States[i].onOffBuffer][0], (States[i].pin >> 5), (States[i].pin & 0x1f) );
     }
     LPC_RITIMER->CTRL |= RIT_CTRL_TEN;
 }
