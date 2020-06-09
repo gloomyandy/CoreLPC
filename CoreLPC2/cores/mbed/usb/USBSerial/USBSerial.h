@@ -129,12 +129,12 @@ public:
     /** Determine if there is space available to write a character
      *
      *  @returns
-     *    1 if there is space to write a character,
+     *    n number of characters that can be written,
      *    0 otherwise
      */
     int writeable()
     {
-        return 1;    // always return 1, for write operation is blocking
+        return (connected() ? sizeof(_tx_buffer) - _tx_size : 0);
     }
 
     /**
