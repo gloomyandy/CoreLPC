@@ -13,8 +13,8 @@ REPRAPFIRMWARE_DIR ?= ./RepRapFirmware
 RRFLIBRARIES_DIR ?= ./RRFLibraries
 CORELPC_DIR ?= ./CoreLPC2
 
-#BUILD ?= Debug
-BUILD ?= Release
+BUILD ?= Debug
+#BUILD ?= Release
 
 #Enable only one
 #NETWORKING ?= true
@@ -49,7 +49,8 @@ include RRFLibraries.mk
 include RepRapFirmware.mk
 
 ifeq ($(BUILD),Debug)
-	DEBUG_FLAGS = -Og -g -DLPC_DEBUG
+	#DEBUG_FLAGS = -Og -g -DLPC_DEBUG
+	DEBUG_FLAGS = -Os -g -DLPC_DEBUG
         $(info - Build: Debug) 
 else
 	DEBUG_FLAGS = -Os
