@@ -218,7 +218,7 @@ protected:
 
     OperationList<AsyncWrite> _tx_list;
     bool _tx_in_progress;
-    uint8_t _tx_buffer[64];
+    uint8_t _tx_buffer[63];
     uint8_t *_tx_buf;
     uint32_t _tx_size;
 
