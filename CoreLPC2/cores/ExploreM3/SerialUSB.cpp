@@ -75,7 +75,13 @@ int SerialUSB::read(void)
 {
     if (usbSerial->connected())
     {
-        return usbSerial->_getc();
+        uint8_t c;
+        uint32_t cnt;
+        usbSerial->receive_nb(&c, 1,  &cnt);
+        if (cnt == 0)
+            return -1;
+        else
+            return (int)c;
     }
     return -1;
 }
@@ -106,7 +112,7 @@ size_t SerialUSB::write(uint8_t c)
 {
     if (usbSerial->connected())
     {
-        usbSerial->_putc(c);
+        write(&c, 1);
     }
     return 1;
 }
@@ -114,20 +120,15 @@ size_t SerialUSB::write(uint8_t c)
 
 size_t SerialUSB::write(const uint8_t *buffer, size_t size)
 {
-    if (usbSerial->connected())
+    size_t ret = size;
+    while (usbSerial->connected() && size != 0)
     {
-        size_t ret = size;
-        while (size != 0)
-        {
-            uint32_t written = 0;
-            usbSerial->send_nb(const_cast<uint8_t*>(buffer), size, &written);
-            buffer += written;
-            size -= written;
-        }
-        return ret;
+        uint32_t written = 0;
+        usbSerial->send_nb(const_cast<uint8_t*>(buffer), size, &written);
+        buffer += written;
+        size -= written;
     }
-    
-    return size;
+    return ret;
 }
 
 
