@@ -141,7 +141,8 @@ size_t HardwareSerial::canWrite()
 
 size_t HardwareSerial::write(const uint8_t ch)
 {
-    Chip_UART_SendRB(this->usart_device->UARTx, &this->txRingBuffer, &ch, 1);
+    // spin until there is room
+    while (Chip_UART_SendRB(this->usart_device->UARTx, &this->txRingBuffer, &ch, 1) == 0) {}
     return 1;
 }
 
