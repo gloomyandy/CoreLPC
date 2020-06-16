@@ -389,6 +389,7 @@ void USBCDC::send_nb(uint8_t *buffer, uint32_t size, uint32_t *actual, bool now)
             memcpy(_tx_buf, buffer, write_size);
         }
         _tx_size += write_size;
+        _tx_buf += write_size;
         *actual = write_size;
         if (now) {
             _send_isr_start();
