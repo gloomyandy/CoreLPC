@@ -230,10 +230,13 @@ int Chip_UART_ReadBlocking(LPC_USART_T *pUART, void *data, int numBytes)
 void Chip_UART_RXIntHandlerRB(LPC_USART_T *pUART, RINGBUFF_T *pRB)
 {
 	/* New data will be ignored if data not popped in time */
-	while (Chip_UART_ReadLineStatus(pUART) & UART_LSR_RDR) {
+	uint32_t stat = Chip_UART_ReadLineStatus(pUART) & (UART_LSR_RDR|UART_LSR_OE|UART_LSR_PE|UART_LSR_FE);
+	do {
 		uint8_t ch = Chip_UART_ReadByte(pUART);
-		RingBuffer_Insert(pRB, &ch);
-	}
+		if (stat & UART_LSR_RDR)
+			RingBuffer_Insert(pRB, &ch);
+		stat = Chip_UART_ReadLineStatus(pUART) & (UART_LSR_RDR|UART_LSR_OE|UART_LSR_PE|UART_LSR_FE);
+	} while(stat != 0);
 }
 
 /* UART transmit-only interrupt handler for ring buffers */
@@ -281,18 +284,26 @@ int Chip_UART_ReadRB(LPC_USART_T *pUART, RINGBUFF_T *pRB, void *data, int bytes)
 /* UART receive/transmit interrupt handler for ring buffers */
 void Chip_UART_IRQRBHandler(LPC_USART_T *pUART, RINGBUFF_T *pRXRB, RINGBUFF_T *pTXRB)
 {
-    /* Handle receive interrupt */
-    Chip_UART_RXIntHandlerRB(pUART, pRXRB);
-
-    /* Handle transmit interrupt if enabled */
-	if (pUART->IER & UART_IER_THREINT) {
-		Chip_UART_TXIntHandlerRB(pUART, pTXRB);
-
-		/* Disable transmit interrupt if the ring buffer is empty */
-		if (RingBuffer_IsEmpty(pTXRB)) {
-			Chip_UART_IntDisable(pUART, UART_IER_THREINT);
+	for(;;)
+	{
+		uint32_t intType = Chip_UART_ReadIntIDReg(pUART) & (UART_IIR_INTID_MASK | UART_IIR_INTSTAT_PEND);
+		switch(intType)
+		{
+		case UART_IIR_INTID_RLS:
+		case UART_IIR_INTID_RDA:
+		case UART_IIR_INTID_CTI:
+			Chip_UART_RXIntHandlerRB(pUART, pRXRB);
+			break;
+		case UART_IIR_INTID_THRE:
+			Chip_UART_TXIntHandlerRB(pUART, pTXRB);
+			/* Disable transmit interrupt if the ring buffer is empty */
+			if (RingBuffer_IsEmpty(pTXRB))
+				Chip_UART_IntDisable(pUART, UART_IER_THREINT);
+			break;
+		case UART_IIR_INTID_MODEM:
+			break;
+		default:
+			return;
 		}
 	}
-    
-    
 }

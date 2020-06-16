@@ -293,10 +293,11 @@ void usart_init(const usart_dev *dev, uint32_t baud_rate)
     serial_baud(dev->UARTx, baud_rate);
     serial_format(dev->UARTx,8, ParityNone, 1);
     
-    /* Reset and enable FIFOs, FIFO trigger level 0 (1 chars) */
-    Chip_UART_SetupFIFOS(dev->UARTx, (UART_FCR_FIFO_EN | UART_FCR_RX_RS | UART_FCR_TX_RS | UART_FCR_TRG_LEV0));
+    /* Reset and enable FIFOs, FIFO trigger level 1 (4 chars) */
+    Chip_UART_SetupFIFOS(dev->UARTx, (UART_FCR_FIFO_EN | UART_FCR_RX_RS | UART_FCR_TX_RS | UART_FCR_TRG_LEV1));
     /* Dump any pending data or errors */
-    while (Chip_UART_ReadLineStatus(dev->UARTx) & (UART_LSR_RDR|UART_LSR_OE|UART_LSR_PE|UART_LSR_FE)) {
+    uint32_t start = millis();
+    while ((Chip_UART_ReadLineStatus(dev->UARTx) & (UART_LSR_RDR|UART_LSR_OE|UART_LSR_PE|UART_LSR_FE)) && ((millis() - start) < 200)) {
         (void) Chip_UART_ReadByte(dev->UARTx);
     }
     Chip_UART_TXEnable(dev->UARTx);
