@@ -23,11 +23,8 @@
 USBSerial::USBSerial(bool connect_blocking, uint16_t vendor_id, uint16_t product_id, uint16_t product_release):
     USBCDC(get_usb_phy(), vendor_id, product_id, product_release)
 {
-    _settings_changed_callback = 0;
-
     if (connect_blocking) {
         connect();
-        wait_ready();
     } else {
         init();
     }
@@ -36,7 +33,6 @@ USBSerial::USBSerial(bool connect_blocking, uint16_t vendor_id, uint16_t product
 USBSerial::USBSerial(USBPhy *phy, uint16_t vendor_id, uint16_t product_id, uint16_t product_release):
     USBCDC(phy, vendor_id, product_id, product_release)
 {
-    _settings_changed_callback = 0;
 }
 
 USBSerial::~USBSerial()
@@ -44,46 +40,11 @@ USBSerial::~USBSerial()
     deinit();
 }
 
-int USBSerial::_putc(int c)
-{
-    if (send((uint8_t *)&c, 1)) {
-        return c;
-    } else {
-        return -1;
-    }
-}
-
-int USBSerial::_getc()
-{
-    uint8_t c = 0;
-    if (receive(&c, sizeof(c))) {
-        return c;
-    } else {
-        return -1;
-    }
-}
-
-void USBSerial::data_rx()
-{
-    assert_locked();
-
-    //call a potential handler
-    if (rx) {
-        rx.call();
-    }
-}
 
 uint8_t USBSerial::available()
 {
-    USBCDC::lock();
-
-    uint8_t size = 0;
-    if (!_rx_in_progress) {
-        size = _rx_size > 0xFF ? 0xFF : _rx_size;
-    }
-
-    USBCDC::unlock();
-    return size;
+    MBED_ASSERT(_rx_size < 0xff);
+    return _rx_size;
 }
 
 bool USBSerial::connected()

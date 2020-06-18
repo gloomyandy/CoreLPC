@@ -293,36 +293,35 @@ static uint32_t endpointReadcore(uint8_t endpoint, uint8_t *buffer, uint32_t siz
 {
     // Read from an OUT endpoint
     uint32_t actual_size;
-    uint32_t i;
     uint32_t data = 0;
-    uint8_t offset;
 
     LPC_USB->Ctrl = LOG_ENDPOINT(endpoint) | RD_EN;
     while (!(LPC_USB->RxPLen & PKT_RDY));
 
     actual_size = LPC_USB->RxPLen & PKT_LNGTH_MASK;
 
-    offset = 0;
-
-    if (actual_size > 0) {
-        for (i = 0; i < actual_size; i++) {
-            if (offset == 0) {
-                // Fetch up to four bytes of data as a word
-                data = LPC_USB->RxData;
+    if (size > actual_size) size = actual_size;
+    if (size > 1) {
+        // transfer as many complete words as we can
+        while(size >= 4) {
+            *(uint32_t *)buffer = LPC_USB->RxData;
+            buffer += 4;
+            size -= 4;
+        }
+        if (size-- > 0) {
+            // transfer remaining bytes
+            data = LPC_USB->RxData;
+            *buffer++ = data & 0xff;
+            if (size-- > 0){
+                *buffer++ = (data >> 8) & 0xff;
+                if (size-- > 0)
+                    *buffer++ = (data >> 16) & 0xff;
             }
-
-            // extract a byte
-            if (size) {
-                *buffer = (data >> offset) & 0xff;
-                buffer++;
-                size--;
-            }
-
-            // move on to the next byte
-            offset = (offset + 8) % 32;
         }
     } else {
-        (void)LPC_USB->RxData;
+        data = LPC_USB->RxData;
+        // handle very common case of a single byte
+        if (size) *buffer = data;
     }
 
     LPC_USB->Ctrl = 0;
@@ -333,34 +332,28 @@ static uint32_t endpointReadcore(uint8_t endpoint, uint8_t *buffer, uint32_t siz
 static void endpointWritecore(uint8_t endpoint, uint8_t *buffer, uint32_t size)
 {
     // Write to an IN endpoint
-    uint32_t temp, data;
-    uint8_t offset;
+    uint32_t data;
 
     LPC_USB->Ctrl = LOG_ENDPOINT(endpoint) | WR_EN;
 
     LPC_USB->TxPLen = size;
-    offset = 0;
-    data = 0;
-
     if (size > 0) {
-        do {
-            // Fetch next data byte into a word-sized temporary variable
-            temp = *buffer++;
-
-            // Add to current data word
-            temp = temp << offset;
-            data = data | temp;
-
-            // move on to the next byte
-            offset = (offset + 8) % 32;
-            size--;
-
-            if ((offset == 0) || (size == 0)) {
-                // Write the word to the endpoint
-                LPC_USB->TxData = data;
-                data = 0;
+        // transfer as many words as we can
+        while(size >= 4) {
+            LPC_USB->TxData = *(uint32_t *)buffer;
+            buffer += 4;
+            size -= 4;   
+        }
+        // now handle possible final bytes
+        if (size-- > 0) {
+            data = *buffer++;
+            if (size-- > 0) {
+                data |= (*buffer++ << 8);
+                if (size-- > 0)
+                    data |= (*buffer << 16);
             }
-        } while (size > 0);
+            LPC_USB->TxData = data;
+        }
     } else {
         LPC_USB->TxData = 0;
     }

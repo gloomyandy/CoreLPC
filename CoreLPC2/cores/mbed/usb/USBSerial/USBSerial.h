@@ -87,21 +87,6 @@ public:
     virtual ~USBSerial();
 
     /**
-    * Send a character. You can use puts, printf.
-    *
-    * @param c character to be sent
-    * @returns true if there is no error, false otherwise
-    */
-    virtual int _putc(int c);
-
-    /**
-    * Read a character: blocking
-    *
-    * @returns character read
-    */
-    virtual int _getc();
-
-    /**
     * Check the number of bytes available.
     *
     * @returns the number of bytes available
@@ -134,89 +119,13 @@ public:
      */
     int writeable()
     {
-        return (connected() ? sizeof(_tx_buffer) - _tx_size : 0);
+        return (connected() ? (!_tx_in_progress ? 2*sizeof(_tx_buffer) : sizeof(_tx_buffer) - _tx_size) : 0);
     }
 
-    /**
-     *  Attach a member function to call when a packet is received.
-     *
-     *  @param tptr pointer to the object to call the member function on
-     *  @param mptr pointer to the member function to be called
-     */
-    template<typename T>
-    void attach(T *tptr, void (T::*mptr)(void))
-    {
-        USBCDC::lock();
-
-        if ((mptr != NULL) && (tptr != NULL)) {
-            rx = mbed::Callback<void()>(tptr, mptr);
-        }
-
-        USBCDC::unlock();
-    }
-
-    /**
-     * Attach a callback called when a packet is received
-     *
-     * @param fptr function pointer
-     */
-    void attach(void (*fptr)(void))
-    {
-        USBCDC::lock();
-
-        if (fptr != NULL) {
-            rx = mbed::Callback<void()>(fptr);
-        }
-
-        USBCDC::unlock();
-    }
-
-    /**
-     * Attach a Callback called when a packet is received
-     *
-     * @param cb Callback to attach
-     */
-    void attach(mbed::Callback<void()> &cb)
-    {
-        USBCDC::lock();
-
-        rx = cb;
-
-        USBCDC::unlock();
-    }
-
-    /**
-     * Attach a callback to call when serial's settings are changed.
-     *
-     * @param fptr function pointer
-     */
-    void attach(void (*fptr)(int baud, int bits, int parity, int stop))
-    {
-        USBCDC::lock();
-
-        _settings_changed_callback = fptr;
-
-        USBCDC::unlock();
-    }
 
     
     void flush();//added by sd
 
-    
-protected:
-    virtual void data_rx();
-    virtual void line_coding_changed(int baud, int bits, int parity, int stop)
-    {
-        assert_locked();
-
-        if (_settings_changed_callback) {
-            _settings_changed_callback(baud, bits, parity, stop);
-        }
-    }
-
-private:
-    mbed::Callback<void()> rx;
-    void (*_settings_changed_callback)(int baud, int bits, int parity, int stop);
 };
 
 #endif

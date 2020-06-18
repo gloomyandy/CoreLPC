@@ -20,8 +20,19 @@
 #include "stdint.h"
 #include "USBCDC.h"
 #include "EndpointResolver.h"
-#include "AsyncOp.h"
 #include "usb_phy_api.h"
+
+#ifdef USE_STATIC_ENDPOINTS
+// These are static versions of _bulk_in, _bulk_out, _int_in, using these values allows us to
+// place the config data into flash rather than RAM.
+#define BULK_IN 130
+#define BULK_OUT 2
+#define INT_IN 129
+#else
+#define BULK_IN _bulk_in
+#define BULK_OUT _bulk_out
+#define INT_IN _int_in
+#endif
 
 static const uint8_t cdc_line_coding_default[7] = {0x80, 0x25, 0x00, 0x00, 0x00, 0x00, 0x08};
 
@@ -37,113 +48,6 @@ static const uint8_t cdc_line_coding_default[7] = {0x80, 0x25, 0x00, 0x00, 0x00,
 
 #define CDC_MAX_PACKET_SIZE    64
 
-class USBCDC::AsyncWrite: public AsyncOp {
-public:
-    AsyncWrite(USBCDC *serial, uint8_t *buf, uint32_t size):
-        serial(serial), tx_buf(buf), tx_size(size), result(false)
-    {
-
-    }
-
-    virtual ~AsyncWrite()
-    {
-
-    }
-
-    virtual bool process()
-    {
-        if (!serial->_terminal_connected) {
-            result = false;
-            return true;
-        }
-
-        uint32_t actual_size = 0;
-        serial->send_nb(tx_buf, tx_size, &actual_size, true);
-        tx_size -= actual_size;
-        tx_buf += actual_size;
-        if (tx_size == 0) {
-            result = true;
-            return true;
-        }
-
-        // Start transfer if it hasn't been
-        serial->_send_isr_start();
-        return false;
-    }
-
-    USBCDC *serial;
-    uint8_t *tx_buf;
-    uint32_t tx_size;
-    bool result;
-};
-
-class USBCDC::AsyncRead: public AsyncOp {
-public:
-    AsyncRead(USBCDC *serial, uint8_t *buf, uint32_t size, uint32_t *size_read, bool read_all)
-        :   serial(serial), rx_buf(buf), rx_size(size), rx_actual(size_read), all(read_all), result(false)
-    {
-
-    }
-
-    virtual ~AsyncRead()
-    {
-
-    }
-
-    virtual bool process()
-    {
-        if (!serial->_terminal_connected) {
-            result = false;
-            return true;
-        }
-
-        uint32_t actual_size = 0;
-        serial->receive_nb(rx_buf, rx_size, &actual_size);
-        rx_buf += actual_size;
-        *rx_actual += actual_size;
-        rx_size -= actual_size;
-        if ((!all && *rx_actual > 0) || (rx_size == 0)) {
-            // Wake thread if request is done
-            result = true;
-            return true;
-        }
-
-        serial->_receive_isr_start();
-        return false;
-    }
-
-    USBCDC *serial;
-    uint8_t *rx_buf;
-    uint32_t rx_size;
-    uint32_t *rx_actual;
-    bool all;
-    bool result;
-};
-
-class USBCDC::AsyncWait: public AsyncOp {
-public:
-    AsyncWait(USBCDC *serial)
-        :   serial(serial)
-    {
-
-    }
-
-    virtual ~AsyncWait()
-    {
-
-    }
-
-    virtual bool process()
-    {
-        if (serial->_terminal_connected) {
-            return true;
-        }
-
-        return false;
-    }
-
-    USBCDC *serial;
-};
 
 USBCDC::USBCDC(bool connect_blocking, uint16_t vendor_id, uint16_t product_id, uint16_t product_release)
     : USBDevice(get_usb_phy(), vendor_id, product_id, product_release)
@@ -152,7 +56,6 @@ USBCDC::USBCDC(bool connect_blocking, uint16_t vendor_id, uint16_t product_id, u
     _init();
     if (connect_blocking) {
         connect();
-        wait_ready();
     } else {
         init();
     }
@@ -178,6 +81,13 @@ void USBCDC::_init()
     _bulk_in = resolver.endpoint_in(USB_EP_TYPE_BULK, CDC_MAX_PACKET_SIZE);
     _bulk_out = resolver.endpoint_out(USB_EP_TYPE_BULK, CDC_MAX_PACKET_SIZE);
     _int_in = resolver.endpoint_in(USB_EP_TYPE_INT, CDC_MAX_PACKET_SIZE);
+
+#ifdef USE_STATIC_ENDPOINTS
+    MBED_ASSERT(_bulk_in == BULK_IN);
+    MBED_ASSERT(_bulk_out == BULK_OUT);
+    MBED_ASSERT(_int_in == INT_IN);
+#endif
+
     MBED_ASSERT(resolver.valid());
 
     _terminal_connected = false;
@@ -325,8 +235,6 @@ void USBCDC::_change_terminal_connected(bool connected)
         }
         _tx_buf = _tx_buffer;
         _tx_size = 0;
-        _tx_list.process();
-        MBED_ASSERT(_tx_list.empty());
 
         // Abort RX
         if (_rx_in_progress) {
@@ -335,46 +243,12 @@ void USBCDC::_change_terminal_connected(bool connected)
         }
         _rx_buf = _rx_buffer;
         _rx_size = 0;
-        _rx_list.process();
-        MBED_ASSERT(_rx_list.empty());
-
     }
-    _connected_list.process();
 }
 
 bool USBCDC::ready()
 {
-    lock();
-
-    bool ready = _terminal_connected;
-
-    unlock();
-    return ready;
-}
-
-void USBCDC::wait_ready()
-{
-//    lock();
-//
-//    AsyncWait wait_op(this);
-//    _connected_list.add(&wait_op);
-//
-//    unlock();
-//
-//    wait_op.wait(NULL);
-}
-
-bool USBCDC::send(uint8_t *buffer, uint32_t size)
-{
-    lock();
-
-    AsyncWrite write_op(this, buffer, size);
-    _tx_list.add(&write_op);
-
-    unlock();
-
-    //write_op.wait(NULL);
-    return write_op.result;
+    return _terminal_connected;
 }
 
 void USBCDC::send_nb(uint8_t *buffer, uint32_t size, uint32_t *actual, bool now)
@@ -382,20 +256,31 @@ void USBCDC::send_nb(uint8_t *buffer, uint32_t size, uint32_t *actual, bool now)
     lock();
 
     *actual = 0;
-    if (_terminal_connected && !_tx_in_progress) {
-        uint32_t free = sizeof(_tx_buffer) - _tx_size;
-        uint32_t write_size = free > size ? size : free;
-        if (size > 0) {
-            memcpy(_tx_buf, buffer, write_size);
+    uint32_t free = sizeof(_tx_buffer) - _tx_size;
+    uint32_t write_size = free > size ? size : free;
+
+    if (_terminal_connected) {
+        // if we can write the data directly to the device
+        if (_tx_size == 0 && !_tx_in_progress) {
+            if (USBDevice::write_start(_bulk_in, buffer, write_size)) {
+                _tx_in_progress = true;
+                size -= write_size;
+                buffer += write_size;
+                *actual = write_size;
+                write_size = free > size ? size : free;
+            }
         }
-        _tx_size += write_size;
-        _tx_buf += write_size;
-        *actual = write_size;
-        if (now) {
-            _send_isr_start();
+        // user the buffer
+        if (write_size > 0) {
+            memcpy(_tx_buf, buffer, write_size);
+            _tx_size += write_size;
+            _tx_buf += write_size;
+            *actual += write_size;
+            if (now) {
+                _send_isr_start();
+            }
         }
     }
-
     unlock();
 }
 
@@ -405,6 +290,8 @@ void USBCDC::_send_isr_start()
 
     if (!_tx_in_progress && _tx_size) {
         if (USBDevice::write_start(_bulk_in, _tx_buffer, _tx_size)) {
+            _tx_buf = _tx_buffer;
+            _tx_size = 0;
             _tx_in_progress = true;
         }
     }
@@ -418,32 +305,21 @@ void USBCDC::_send_isr()
 {
     assert_locked();
 
-    write_finish(_bulk_in);
-    _tx_buf = _tx_buffer;
-    _tx_size = 0;
+    uint32_t len = write_finish(_bulk_in);
     _tx_in_progress = false;
-
-    _tx_list.process();
-    if (!_tx_in_progress) {
-        data_tx();
+    if (_tx_size)
+    {
+        // more data to send
+        _send_isr_start();
     }
-}
-
-bool USBCDC::receive(uint8_t *buffer, uint32_t size,  uint32_t *size_read)
-{
-    lock();
-
-    bool read_all = size_read == NULL;
-    uint32_t size_read_dummy;
-    uint32_t *size_read_ptr = read_all ? &size_read_dummy : size_read;
-    *size_read_ptr = 0;
-    AsyncRead read_op(this, buffer, size, size_read_ptr, read_all);
-    _rx_list.add(&read_op);
-
-    unlock();
-
-    //read_op.wait(NULL);
-    return read_op.result;
+    else if (len == CDC_MAX_PACKET_SIZE)
+    {
+        // Previous packet was a full one and we have no more data to send
+        // we need to send a zero length packet to indicate that there may be no
+        // more output for a while (See USBCDC spec for details)
+        if (USBDevice::write_start(_bulk_in, _tx_buffer, 0))
+            _tx_in_progress = true;
+    }
 }
 
 void USBCDC::receive_nb(uint8_t *buffer, uint32_t size,  uint32_t *size_read)
@@ -467,8 +343,8 @@ void USBCDC::_receive_isr_start()
 {
     if ((_rx_size == 0) && !_rx_in_progress) {
         // Refill the buffer
-        read_start(_bulk_out, _rx_buffer, sizeof(_rx_buffer));
         _rx_in_progress = true;
+        read_start(_bulk_out, _rx_buffer, sizeof(_rx_buffer));
     }
 }
 
@@ -484,11 +360,6 @@ void USBCDC::_receive_isr()
     _rx_buf = _rx_buffer;
     _rx_size = read_finish(_bulk_out);
     _rx_in_progress = false;
-    _rx_list.process();
-    if (!_rx_in_progress) {
-        data_rx();
-    }
-
 }
 
 const uint8_t *USBCDC::device_desc()
@@ -548,7 +419,11 @@ const uint8_t *USBCDC::string_iproduct_desc()
 
 const uint8_t *USBCDC::configuration_desc(uint8_t index)
 {
+#ifdef USE_STATIC_ENDPOINTS
+    static constexpr uint8_t config_descriptor_temp[] = {
+#else
     uint8_t config_descriptor_temp[] = {
+#endif
         // configuration descriptor
         9,                      // bLength
         2,                      // bDescriptorType
@@ -610,7 +485,7 @@ const uint8_t *USBCDC::configuration_desc(uint8_t index)
         // endpoint descriptor, USB spec 9.6.6, page 269-271, Table 9-13
         ENDPOINT_DESCRIPTOR_LENGTH,     // bLength
         ENDPOINT_DESCRIPTOR,            // bDescriptorType
-        _int_in,                        // bEndpointAddress
+        INT_IN,                         // bEndpointAddress
         E_INTERRUPT,                    // bmAttributes (0x03=intr)
         LSB(CDC_MAX_PACKET_SIZE),       // wMaxPacketSize (LSB)
         MSB(CDC_MAX_PACKET_SIZE),       // wMaxPacketSize (MSB)
@@ -630,7 +505,7 @@ const uint8_t *USBCDC::configuration_desc(uint8_t index)
         // endpoint descriptor, USB spec 9.6.6, page 269-271, Table 9-13
         ENDPOINT_DESCRIPTOR_LENGTH, // bLength
         ENDPOINT_DESCRIPTOR,        // bDescriptorType
-        _bulk_in,                   // bEndpointAddress
+        BULK_IN,                    // bEndpointAddress
         E_BULK,                     // bmAttributes (0x02=bulk)
         LSB(CDC_MAX_PACKET_SIZE),   // wMaxPacketSize (LSB)
         MSB(CDC_MAX_PACKET_SIZE),   // wMaxPacketSize (MSB)
@@ -639,7 +514,7 @@ const uint8_t *USBCDC::configuration_desc(uint8_t index)
         // endpoint descriptor, USB spec 9.6.6, page 269-271, Table 9-13
         ENDPOINT_DESCRIPTOR_LENGTH, // bLength
         ENDPOINT_DESCRIPTOR,        // bDescriptorType
-        _bulk_out,                  // bEndpointAddress
+        BULK_OUT,                   // bEndpointAddress
         E_BULK,                     // bmAttributes (0x02=bulk)
         LSB(CDC_MAX_PACKET_SIZE),   // wMaxPacketSize (LSB)
         MSB(CDC_MAX_PACKET_SIZE),   // wMaxPacketSize (MSB)
@@ -647,9 +522,13 @@ const uint8_t *USBCDC::configuration_desc(uint8_t index)
     };
 
     if (index == 0) {
+#ifdef USE_STATIC_ENDPOINTS
+        return config_descriptor_temp;
+#else
         MBED_ASSERT(sizeof(config_descriptor_temp) == sizeof(_config_descriptor));
         memcpy(_config_descriptor, config_descriptor_temp, sizeof(_config_descriptor));
         return _config_descriptor;
+#endif
     } else {
         return NULL;
     }

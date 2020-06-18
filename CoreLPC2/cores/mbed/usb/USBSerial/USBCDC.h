@@ -29,9 +29,7 @@
 
 #include "USBDevice.h"
 #include "OperationList.h"
-
-class AsyncOp;
-
+#define USE_STATIC_ENDPOINTS
 class USBCDC: public USBDevice {
 public:
 
@@ -83,22 +81,6 @@ public:
     bool ready();
 
     /**
-     * Block until the terminal is connected
-     */
-    void wait_ready();
-
-    /*
-    * Send a buffer
-    *
-    * This function blocks until the full contents have been sent.
-    *
-    * @param buffer buffer to be sent
-    * @param size length of the buffer
-    * @returns true if successful false if interrupted due to a state change
-    */
-    bool send(uint8_t *buffer, uint32_t size);
-
-    /**
      * Send what there is room for
      *
      * @param buffer data to send
@@ -108,19 +90,6 @@ public:
      */
     void send_nb(uint8_t *buffer, uint32_t size, uint32_t *actual, bool now = true);
 
-    /*
-    * Read a buffer from a certain endpoint. Warning: blocking
-    *
-    * Blocks until at least one byte of data has been read (actual != NULL) or
-    * until the full size has been read (actual == NULL).
-    *
-    * @param buffer buffer where will be stored bytes
-    * @param size the maximum number of bytes to read
-    * @param actual A pointer to where to store the number of bytes actually read
-    *   or NULL to read the full size
-    * @returns true if successful false if interrupted due to a state change
-    */
-    bool receive(uint8_t *buffer, uint32_t size, uint32_t *actual = NULL);
 
     /**
      * Read from the receive buffer
@@ -172,22 +141,7 @@ protected:
     */
     virtual void line_coding_changed(int baud, int bits, int parity, int stop) {};
 
-    /*
-     * Called when there is data that can be read
-     */
-    virtual void data_rx() {}
-
-    /*
-     * Called when there is space in the TX buffer
-     */
-    virtual void data_tx() {}
-
 protected:
-
-    class AsyncWrite;
-    class AsyncRead;
-    class AsyncWait;
-
     virtual void callback_reset();
     virtual void callback_state_change(DeviceState new_state);
     virtual void callback_request(const setup_packet_t *setup);
@@ -211,20 +165,19 @@ protected:
 
     uint8_t _cdc_line_coding[7];
     uint8_t _cdc_new_line_coding[7];
+#ifndef USE_STATIC_ENDPOINTS
     uint8_t _config_descriptor[75];
+#endif
 
-    OperationList<AsyncWait> _connected_list;
     bool _terminal_connected;
 
-    OperationList<AsyncWrite> _tx_list;
     bool _tx_in_progress;
-    uint8_t _tx_buffer[63];
+    uint8_t _tx_buffer[64] __attribute__ ((aligned (4)));
     uint8_t *_tx_buf;
     uint32_t _tx_size;
 
-    OperationList<AsyncRead> _rx_list;
     bool _rx_in_progress;
-    uint8_t _rx_buffer[128];
+    uint8_t _rx_buffer[64] __attribute__ ((aligned (4)));
     uint8_t *_rx_buf;
     uint32_t _rx_size;
 };
