@@ -41,11 +41,14 @@ const adcChannelConfig_st AdcConfig[numChannels]=
 // Module initialisation
 void AnalogInInit()
 {
+    if (ADCInitCnt > 0)
+        Chip_ADC_DeInit(LPC_ADC);
     Chip_ADC_Init(LPC_ADC, &ADCSetup);                                  //Init ADC and setup the ADCSetup struct
-    Chip_ADC_SetBurstCmd(LPC_ADC, ENABLE);                              //enable burst mode
     Chip_ADC_SetSampleRate(LPC_ADC, &ADCSetup, ADC_MAX_SAMPLE_RATE);    //200kHz
     
     LPC_ADC->INTEN = 0x00; //disable all interrupts
+    LPC_ADC->CR  |= (activeChannels & 0x000000FF );
+    Chip_ADC_SetBurstCmd(LPC_ADC, ENABLE);                              //enable burst mode
 }
 
 void ConfigureADCPreFilter(bool enable, uint8_t numSamples, uint32_t sampleRateHz)
