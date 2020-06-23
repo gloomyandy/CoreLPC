@@ -74,7 +74,7 @@ $(info  - Linker Script used: $(LINKER_SCRIPT))
 
 
 #Flags common for Core in c and c++
-FLAGS  = -D__$(PROCESSOR)__ -D_XOPEN_SOURCE
+FLAGS  = -D__$(PROCESSOR)__ -D_XOPEN_SOURCE -DENABLE_UART3
 
 ifeq ($(MBED), true)
         $(info  - Building for MBED)
