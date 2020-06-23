@@ -12,6 +12,10 @@
 #include "chip.h"
 #include "ADCPreFilter.h"
 
+uint32_t ADCNotReadyCnt = 0;
+uint32_t ADCInitCnt = 0;
+uint32_t ADCErrorThreshold = 10;
+
 static ADC_CLOCK_SETUP_T ADCSetup;
 const unsigned int numChannels = 8; //8 channels on LPC1768
 static uint8_t activeChannels = 0;
@@ -41,7 +45,7 @@ const adcChannelConfig_st AdcConfig[numChannels]=
 // Module initialisation
 void AnalogInInit()
 {
-    if (ADCInitCnt > 0)
+    if (ADCInitCnt++ > 0)
         Chip_ADC_DeInit(LPC_ADC);
     Chip_ADC_Init(LPC_ADC, &ADCSetup);                                  //Init ADC and setup the ADCSetup struct
     Chip_ADC_SetSampleRate(LPC_ADC, &ADCSetup, ADC_MAX_SAMPLE_RATE);    //200kHz
@@ -87,13 +91,22 @@ uint16_t AnalogInReadChannel(AnalogChannelNumber channel)
     uint16_t val = 0;
     if(usingPreFilter == true)
     {
-        return ADCPreFilterRead((uint8_t)channel);
+        if (ADCPreFilterRead((uint8_t)channel, &val) == ERROR)
+            ADCNotReadyCnt++;
     }
     else
     {
-        Chip_ADC_ReadValue(LPC_ADC, (uint8_t)channel, &val);
-        return val;
+        if (Chip_ADC_ReadValue(LPC_ADC, (uint8_t)channel, &val) == ERROR)
+            ADCNotReadyCnt++;
     }
+    // If we are getting errors, try resetting
+    if (ADCNotReadyCnt > ADCErrorThreshold)
+    {
+        // Increase threshold for next time
+        ADCErrorThreshold *= 2;
+        AnalogInInit();
+    }
+    return val;
 }
 
 

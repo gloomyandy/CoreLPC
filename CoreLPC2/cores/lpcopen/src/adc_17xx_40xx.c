@@ -31,10 +31,6 @@
 
 #include "chip.h"
 
-#ifdef LPC_DEBUG
-uint32_t ADCNotReadyCnt = 0;
-uint32_t ADCInitCnt = 0;
-#endif
 
 /*****************************************************************************
  * Private types/enumerations/variables
@@ -108,9 +104,6 @@ Status readAdcVal(LPC_ADC_T *pADC, uint8_t channel, uint16_t *data)
 	uint32_t temp;
 	temp = pADC->DR[channel];
 	if (!ADC_DR_DONE(temp)) {
-#ifdef LPC_DEBUG
-		ADCNotReadyCnt++;
-#endif
 		return ERROR;
 	}
 	/*	if(ADC_DR_OVERRUN(temp) && (pADC->CR & ADC_CR_BURST)) */
@@ -149,9 +142,6 @@ void Chip_ADC_Init(LPC_ADC_T *pADC, ADC_CLOCK_SETUP_T *ADCSetup)
 	cr |= ADC_CR_BITACC(ADCSetup->bitsAccuracy);
 #endif /*defined(ADC_ACC_12BITS)*/
 	pADC->CR = cr;
-#ifdef LPC_DEBUG
-	ADCInitCnt++;
-#endif
 }
 
 /* Shutdown ADC */

@@ -12,7 +12,9 @@
 
 #include "Core.h"
 
-
+extern uint32_t ADCNotReadyCnt;
+extern uint32_t ADCInitCnt;
+extern uint32_t ADCErrorThreshold;
 
 // Module initialisation
 void AnalogInInit();

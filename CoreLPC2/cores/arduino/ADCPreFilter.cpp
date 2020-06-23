@@ -144,19 +144,23 @@ void ADC_DMA_HANDLER()
     Chip_TIMER_Enable(LPC_TIMER1);
 }
 
-uint16_t ADCPreFilterRead(uint8_t channel)
+Status ADCPreFilterRead(uint8_t channel, uint16_t *val)
 {
+    uint32_t error = 0;
     if(ADCPreFilterInitialised == false)
     {
-        return 0;
+        return ERROR;
     }
     
     for(uint8_t i=0; i<numberADCSamples; i++)
     {
+        if (!ADC_DR_DONE(adcSamplesArray[i*NumADCChannels + channel]))
+            error++;
         median_buffer[i] = ((adcSamplesArray[i*NumADCChannels + channel] >> 4) & 0xFFF);
     }
 
-    return median_buffer[quick_median(median_buffer, numberADCSamples)];
+    *val = median_buffer[quick_median(median_buffer, numberADCSamples)];
+    return (error ? ERROR : SUCCESS);
 }
 
 

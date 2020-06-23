@@ -36,10 +36,6 @@
 extern "C" {
 #endif
 
-#ifdef LPC_DEBUG
-extern uint32_t ADCNotReadyCnt;
-extern uint32_t ADCInitCnt;
-#endif
 
 /** @defgroup ADC_17XX_40XX CHIP:  LPC17xx/40xx A/D conversion driver
  * @ingroup CHIP_17XX_40XX_Drivers
