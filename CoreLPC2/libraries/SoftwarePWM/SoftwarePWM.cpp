@@ -8,7 +8,7 @@ extern "C" void debugPrintf(const char* fmt, ...) __attribute__ ((format (printf
 
 SoftwarePWM::SoftwarePWM(Pin softPWMPin)
 {
-    SetFrequency(1); //default to 1Hz
+    SetFrequency(0); // set to disabled
     
     pwmRunning = false;
     pin = softPWMPin;
@@ -28,8 +28,11 @@ void SoftwarePWM::Enable()
 
 void SoftwarePWM::Disable()
 {
-    if (chan >= 0) 
+    if (chan >= 0)
+    {
         softwarePWMTimer.disable(chan);
+        chan = -1;
+    }
     pinMode(pin, OUTPUT_LOW);
     pwmRunning = false;
 }
@@ -39,7 +42,10 @@ void SoftwarePWM::SetFrequency(uint16_t freq)
 {
     frequency = freq;
     //find the period in us
-    period = 1000000/freq;
+    if (freq == 0)
+        period = 1000000;
+    else
+        period = 1000000/freq;
     onTime = 0;    
 }
 

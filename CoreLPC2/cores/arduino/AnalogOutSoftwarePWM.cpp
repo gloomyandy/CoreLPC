@@ -14,14 +14,14 @@ bool CanDoSoftwarePWM(Pin pin)
 {
     (void)pin;
     
-    //SoftwarePWM can be on any pin, the only restriction if the Max number we allow
-    uint8_t count = 0;
-    for(size_t i=0; i<MaxNumberSoftwarePWMPins; i++)
+    //SoftwarePWM can be on any pin, the only restriction is the Max number we allow
+    // so search for a free slot
+   for(size_t i=0; i<MaxNumberSoftwarePWMPins; i++)
     {
-        if(softwarePWMEntries[i] == nullptr) count++;
+        if(softwarePWMEntries[i] == nullptr) return true;
     }
-
-    return (count <= MaxNumberSoftwarePWMPins);
+    // no free slots available
+    return false;
     
 }
 
@@ -119,7 +119,9 @@ bool AnalogWriteSoftwarePWM(float ulValue, uint16_t freq, Pin pin)
         softwarePWMEntries[slot]->Disable();
         softwarePWMEntries[slot]->SetFrequency(freq);
         softwarePWMEntries[slot]->SetDutyCycle(ulValue);
-        softwarePWMEntries[slot]->Enable();
+        // leave disabled if freq is zero
+        if (freq != 0)
+            softwarePWMEntries[slot]->Enable();
     }
     else
     {
