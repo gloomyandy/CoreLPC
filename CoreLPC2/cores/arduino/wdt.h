@@ -13,6 +13,7 @@ extern "C" {
 void wdt_init(uint32_t s_counter);
 //void wdt_restart();
 void wdt_restart(uint8_t wdt); //compat with RRF
+void watchdogReset(); // compat with 3.2+
     
 #ifdef __cplusplus
 }

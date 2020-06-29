@@ -35,6 +35,16 @@
 // We need to use "extern C++" here so that it compiles even if this file was #included inside an "extern C" block
 
 extern "C++" {
+	inline bool Xor(bool a, bool b) noexcept
+	{
+		return (a) ? !b : b;
+	}
+
+	inline bool XNor(bool a, bool b) noexcept
+	{
+		return (a) ? b : !b;
+	}
+
 
     extern int32_t random(int32_t);
     extern int32_t random(int32_t, int32_t);

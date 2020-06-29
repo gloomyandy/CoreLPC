@@ -66,6 +66,10 @@ void wdt_restart(uint8_t wdt) //compat with RRF wdt not used, but maintain compa
     cpu_irq_restore(flags);
 }
 
+void watchdogReset()
+{
+    wdt_restart(0);
+}
     
 #ifdef __cplusplus
 }
