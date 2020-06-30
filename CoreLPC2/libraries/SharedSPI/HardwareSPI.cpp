@@ -102,6 +102,26 @@ static inline CHIP_SSP_BITS_T getSSPBits(uint8_t bits)
     return SSP_BITS_8;
 }
 
+#define SPI_CPHA  (1 << 0) //Phase Control
+#define SPI_CPOL  (1 << 1) //Clock Polarity
+
+
+//Mode 0 - CPOL=0  - produces a steady state low value on the SCK pin
+//       - CPHA=0  - data is captured on the first clock edge transition
+#define SPI_MODE_0  0
+
+//Mode 1 - CPOL=0  - produces a steady state low value on the SCK pin
+//       - CPHA=1  - data is captured on the second clock edge transition
+#define SPI_MODE_1  (SPI_CPHA)
+
+//Mode 2 - CPOL=1  - a steady state high value is placed on the CLK pin when data is not being transferred
+//       - CPHA=0  - data is captured on the first clock edge transition
+#define SPI_MODE_2  (SPI_CPOL)
+
+//Mode 3 - CPOL=1  - a steady state high value is placed on the CLK pin when data is not being transferred
+//       - CPHA=1  - data is captured on the second clock edge transition
+#define SPI_MODE_3  (SPI_CPOL | SPI_CPHA)
+
 static inline CHIP_SSP_CLOCK_MODE_T getSSPMode(uint8_t spiMode)
 {
     switch(spiMode)
@@ -153,7 +173,7 @@ void HardwareSPI::configurePins(bool hardwareCS)
     }
 }
 
-void HardwareSPI::InitPins(Pin sck, Pin miso, Pin mosi, Pin cs)
+void HardwareSPI::initPins(Pin sck, Pin miso, Pin mosi, Pin cs)
 {
     if(ssp == LPC_SSP0)
     {
@@ -203,7 +223,7 @@ void HardwareSPI::configureDevice(uint32_t deviceMode, uint32_t bits, uint32_t c
 
 
 //setup the master device.
-void HardwareSPI::setup_device(const struct sspi_device *device)
+void HardwareSPI::configureDevice(uint32_t bits, uint32_t clockMode, uint32_t bitRate)
 {
     disable();
     Chip_SSP_Disable(ssp);
@@ -213,7 +233,7 @@ void HardwareSPI::setup_device(const struct sspi_device *device)
         configurePins(false);
         needInit = false;
     }
-    configureMode(SSP_MODE_MASTER, getSSPBits(device->bitsPerTransferControl), getSSPMode(device->spiMode), device->clockFrequency);
+    configureMode(SSP_MODE_MASTER, getSSPBits(bits), getSSPMode(clockMode), bitRate);
 }
 
 
@@ -262,7 +282,7 @@ void HardwareSPI::startTransfer(const uint8_t *tx_data, uint8_t *rx_data, size_t
     Chip_SSP_DMA_Enable(ssp);
 }
 
-spi_status_t HardwareSPI::sspi_transceive_packet(const uint8_t *tx_data, uint8_t *rx_data, size_t len)
+spi_status_t HardwareSPI::transceivePacket(const uint8_t *tx_data, uint8_t *rx_data, size_t len)
 {
     waitingTask = xTaskGetCurrentTaskHandle();
     startTransfer(tx_data, rx_data, len, transferComplete);

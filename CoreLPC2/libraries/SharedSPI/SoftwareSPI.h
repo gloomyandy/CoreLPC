@@ -2,7 +2,6 @@
 #define SOFTWARESPI_H
 
 #include "Core.h"
-#include "SharedSpi.h"
 #include "variant.h"
 #include "SPI.h"
 
@@ -10,11 +9,12 @@ class SoftwareSPI: public SPI
 {
 public:
     SoftwareSPI();
-    void InitPins(Pin sck_pin, Pin miso_pin, Pin mosi_pin);
-    spi_status_t sspi_transceive_packet(const uint8_t *tx_data, uint8_t *rx_data, size_t len);
-    spi_status_t sspi_transceive_packet_16(const uint8_t *tx_data, uint8_t *rx_data, size_t len);
-    void setup_device(const struct sspi_device *device);
+    spi_status_t transceivePacket(const uint8_t *tx_data, uint8_t *rx_data, size_t len);
+    void configureDevice(uint32_t bits, uint32_t clockMode, uint32_t bitRate); // Master mode
+    void initPins(Pin sck, Pin miso, Pin mosi, Pin cs = NoPin);
     bool waitForTxEmpty();
+    
+    static SoftwareSPI SWSSP0;
 
 private:
     

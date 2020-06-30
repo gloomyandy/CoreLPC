@@ -6,6 +6,7 @@
 //#define SWSPI_DEBUG
 extern "C" void debugPrintf(const char* fmt, ...) __attribute__ ((format (printf, 1, 2)));
 
+SoftwareSPI SoftwareSPI::SWSSP0;
 
 bool SoftwareSPI::waitForTxEmpty()
 {
@@ -13,7 +14,7 @@ bool SoftwareSPI::waitForTxEmpty()
 }
 
 
-void SoftwareSPI::InitPins(Pin sck_pin, Pin miso_pin, Pin mosi_pin)
+void SoftwareSPI::initPins(Pin sck_pin, Pin miso_pin, Pin mosi_pin, Pin cs)
 {
     sck = sck_pin;
     miso = miso_pin;
@@ -21,7 +22,7 @@ void SoftwareSPI::InitPins(Pin sck_pin, Pin miso_pin, Pin mosi_pin)
 }
 
 //setup the master device.
-void SoftwareSPI::setup_device(const struct sspi_device *device)
+void SoftwareSPI::configureDevice(uint32_t bits, uint32_t clockMode, uint32_t bitRate)
 {
     if(needInit)
     {
@@ -43,7 +44,7 @@ SoftwareSPI::SoftwareSPI():needInit(true),sck(NoPin),mosi(NoPin),miso(NoPin)
 }
 
 
-spi_status_t SoftwareSPI::sspi_transceive_packet(const uint8_t *tx_data, uint8_t *rx_data, size_t len)
+spi_status_t SoftwareSPI::transceivePacket(const uint8_t *tx_data, uint8_t *rx_data, size_t len)
 {
     for (uint32_t i = 0; i < len; ++i)
     {
