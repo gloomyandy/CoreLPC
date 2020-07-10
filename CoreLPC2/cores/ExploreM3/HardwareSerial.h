@@ -30,6 +30,8 @@
  * @brief Wirish serial port interface.
  */
 
+//sdavi: Edited to use ringbuffers and UART0 DMA support
+
 #ifndef _WIRISH_HARDWARESERIAL_H_
 #define _WIRISH_HARDWARESERIAL_H_
 
@@ -44,44 +46,57 @@ class HardwareSerial : public Stream
 {
 
 public:
-    HardwareSerial(const struct usart_dev *usart_device, uint16_t rxRingBufferSize = 128, uint16_t txRingBufferSize = 64);
+    HardwareSerial(const struct usart_dev *usart_device, uint16_t rxRingBufferSize = 128, uint16_t txRingBufferSize = 256) noexcept;
 
 
     /* Set up/tear down */
-    void begin(uint32_t baud);
-    void end();
-    int available(void);
-    int availableForWrite(void);
-    int peek(void);
-    int read(void);
-    void flush(void);
-    size_t write(const uint8_t *buffer, size_t size) override;
-    size_t write(uint8_t) override;
+    void begin(uint32_t baud) noexcept;
+    void end() noexcept;
+    int available(void) noexcept;
+    int availableForWrite(void) noexcept;
+    int peek(void) noexcept;
+    int read(void) noexcept;
+    void flush(void) noexcept;
+    size_t write(const uint8_t *buffer, size_t size) noexcept override;
+    size_t write(uint8_t) noexcept override;
     using Print::write;
-    size_t canWrite();
+    size_t canWrite() noexcept;
 
-	bool IsConnected() { return true; }
+	bool IsConnected() noexcept { return true; }
 
-    void IRQHandler();
+    void IRQHandler() noexcept;
     
-    void setInterruptPriority(uint32_t priority);
-    uint32_t getInterruptPriority();
+    void setInterruptPriority(uint32_t priority) noexcept;
+    uint32_t getInterruptPriority() noexcept;
     
-    void SetRingBufferSizes(uint16_t rxRingBufferSize, uint16_t txRingBufferSize);
+    void SetRingBufferSizes(uint16_t rxRingBufferSize, uint16_t txRingBufferSize) noexcept;
 
-
+    void TxDMAInterrupt(bool error);
+    void RxDMAInterrupt(bool error);
+    
+    
 private:
-    const struct usart_dev *usart_device;
-    RINGBUFF_T txRingBuffer;
-    RINGBUFF_T rxRingBuffer;
-    
-    uint8_t *rxDataBuffer;
-    uint8_t *txDataBuffer;
+    const struct usart_dev * const usartDevice;
     
     uint16_t rxBufferSize;
     uint16_t txBufferSize;
+
+    uint8_t *rxDataBuffer;
+    uint8_t *txDataBuffer;
     
+    bool usingDMA;
     bool initialised;
+
+    volatile size_t tail; //tail for RX DMA Ringbuffer
+    volatile bool txPending;
+
+
+    GPDMA_CH_T *pDMAchRx;
+    
+    size_t GetRingBufferHead();
+    
+    RINGBUFF_T txRingBuffer;
+    RINGBUFF_T rxRingBuffer;
 
   protected:
 };

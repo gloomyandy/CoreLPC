@@ -42,6 +42,9 @@ SIZE    = arm-none-eabi-size
 
 MKDIR = mkdir -p
 
+#function to get unique values from a list from bobbogo (https://stackoverflow.com/questions/16144115/makefile-remove-duplicate-words-without-sorting)
+uniq = $(if $1,$(firstword $1) $(call uniq,$(filter-out $(firstword $1),$1)))
+
 
 include LPCCore.mk
 include FreeRTOS.mk
@@ -116,7 +119,9 @@ else
         $(info  - Smart Drivers: None)
 endif
 
-CFLAGS   = $(FLAGS) -std=gnu11 -fgnu89-inline -Dnoexcept=
+CFLAGS   = $(FLAGS) -std=gnu11 -fgnu89-inline 
+#Ignore noexcepts in c
+CFLAGS   += -Dnoexcept=
 CXXFLAGS = $(FLAGS) -std=gnu++17 -fno-threadsafe-statics -fexceptions -fno-rtti -Wno-register
 CXXFLAGS_RRFL = $(FLAGS) -std=gnu++17 -fno-threadsafe-statics -fno-exceptions -fno-rtti -Wno-register
 CXXFLAGS_CORE = $(FLAGS) -std=gnu++17 -fno-threadsafe-statics -fno-exceptions -fno-rtti -Wno-register

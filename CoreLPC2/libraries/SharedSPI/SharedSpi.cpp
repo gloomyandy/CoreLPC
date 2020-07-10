@@ -1,3 +1,4 @@
+//Author: sdavi
 //Implement the SharedSpi as in RRF
 
 #include "Core.h"
@@ -10,7 +11,7 @@ static SoftwareSPI swspi0;
 
 
 static SPI *selectedSPIDevice = nullptr;
-SPI *getSSPDevice(SSPChannel channel)
+SPI *getSSPDevice(SSPChannel channel) noexcept
 {
     switch(channel)
     {
@@ -21,7 +22,7 @@ SPI *getSSPDevice(SSPChannel channel)
     }
 }
 
-void sspi_setPinsForChannel(SSPChannel channel, Pin sck, Pin miso, Pin mosi, Pin cs)
+void sspi_setPinsForChannel(SSPChannel channel, Pin sck, Pin miso, Pin mosi, Pin cs) noexcept
 {
     switch(channel)
     {
@@ -34,7 +35,7 @@ void sspi_setPinsForChannel(SSPChannel channel, Pin sck, Pin miso, Pin mosi, Pin
 
 
 // Set up the Shared SPI subsystem
-void sspi_master_init(struct sspi_device *device, uint32_t bits)
+void sspi_master_init(struct sspi_device *device, uint32_t bits) noexcept
 {
     GPIO_PinFunction(device->csPin, 0); //set pin to GPIO
     pinMode(device->csPin, (device->csPolarity) ? OUTPUT_LOW : OUTPUT_HIGH);
@@ -49,7 +50,7 @@ void sspi_master_init(struct sspi_device *device, uint32_t bits)
 
 
 //setup the master device.
-void sspi_master_setup_device(const struct sspi_device *device)
+void sspi_master_setup_device(const struct sspi_device *device) noexcept
 {
     SPI *spi = getSSPDevice(device->sspChannel);
     if(spi != nullptr)
@@ -60,7 +61,7 @@ void sspi_master_setup_device(const struct sspi_device *device)
 
 
 // select device to use the SSP/SPI bus
-void sspi_select_device(const struct sspi_device *device)
+void sspi_select_device(const struct sspi_device *device) noexcept
 {
 	// Enable the CS line
     if(device->csPolarity == false)
@@ -78,10 +79,8 @@ void sspi_select_device(const struct sspi_device *device)
 }
 
 // deselect
-void sspi_deselect_device(const struct sspi_device *device)
+void sspi_deselect_device(const struct sspi_device *device) noexcept
 {
-	if(selectedSPIDevice != nullptr) selectedSPIDevice->waitForTxEmpty();
-
 	// Disable the CS line
     if(device->csPolarity == false)
     {
@@ -95,14 +94,14 @@ void sspi_deselect_device(const struct sspi_device *device)
 }
 
 
-spi_status_t sspi_transceive_packet(const uint8_t *tx_data, uint8_t *rx_data, size_t len)
+spi_status_t sspi_transceive_packet(const uint8_t *tx_data, uint8_t *rx_data, size_t len) noexcept
 {
     if(selectedSPIDevice == nullptr) return SPI_ERROR_TIMEOUT;//todo: just return timeout error if null
     return selectedSPIDevice->sspi_transceive_packet(tx_data, rx_data, len);
 }
 
 //transceive a packet for SDCard
-uint8_t sspi_transceive_a_packet(uint8_t buf)
+uint8_t sspi_transceive_a_packet(uint8_t buf) noexcept
 {
     uint8_t tx[1], rx[1];
     tx[0] = (uint8_t)buf;

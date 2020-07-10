@@ -90,6 +90,10 @@ extern uint32_t SystemCoreClock;
 #define configUSE_COUNTING_SEMAPHORES			1
 #define configUSE_NEWLIB_REENTRANT 				0	// We'd like to use 1 but that makes the tasks too big because strint _reent is so large
 
+#if defined(__LPC17xx__)
+    #define configRECORD_STACK_HIGH_ADDRESS     1
+#endif
+
 /* The full demo always has tasks to run so the tick will never be turned off.
 The blinky demo will use the default tickless idle implementation to turn the
 tick off. */
@@ -199,9 +203,6 @@ through the CLI interface. */
 #define configINCLUDE_DEMO_DEBUG_STATS 0
 
 
-#ifdef LPC_DEBUG
-    //debugging
-    #define configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H     1
-#endif
+#define configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H     1
 
 #endif /* FREERTOS_CONFIG_H */

@@ -59,7 +59,8 @@ constexpr uint32_t SCLK_INIT =  400000;     /* SCLK frequency under initializati
 
 #define SD_COMMAND_TIMEOUT 5000
 
-SDCard::SDCard(SSPChannel SSPSlot, Pin cs) {
+SDCard::SDCard(SSPChannel SSPSlot, Pin cs) noexcept
+{
     
     maxFrequency = SCLK_SD12; //default max frequency to run at
     frequency = SCLK_SD12;
@@ -79,13 +80,13 @@ SDCard::SDCard(SSPChannel SSPSlot, Pin cs) {
 }
 
 //call before ReInit
-void SDCard::SetSSPChannel(SSPChannel channel)
+void SDCard::SetSSPChannel(SSPChannel channel) noexcept
 {
     _sspi_device.sspChannel = channel;
 }
 
 
-void SDCard::ReInit(Pin cs, uint32_t freq)
+void SDCard::ReInit(Pin cs, uint32_t freq) noexcept
 {
     maxFrequency = freq; //Maximum frequency set by the user
 
@@ -108,11 +109,9 @@ void SDCard::ReInit(Pin cs, uint32_t freq)
     _sspi_device.csPin = cs;
     
     sspi_master_init(&_sspi_device, 8); //default to 8bits
-    sspi_master_setup_device(&_sspi_device); //init the bus
-    
 }
 
-void SDCard::unmount()
+void SDCard::unmount() noexcept
 {
     status = STA_NOINIT;
     isHighSpeed = false;
@@ -124,7 +123,7 @@ void SDCard::unmount()
 /*-----------------------------------------------------------------------*/
 
 /* Exchange a byte */
-static inline uint8_t xchg_spi (uint8_t dat)
+static inline uint8_t xchg_spi (uint8_t dat) noexcept
 {
     return sspi_transceive_a_packet(dat);
 }
@@ -133,7 +132,7 @@ static inline uint8_t xchg_spi (uint8_t dat)
 /* Receive multiple byte */
 /* buff - Pointer to data buffer */
 /* btr - Number of bytes to receive (16, 64 or 512) */
-static inline void rcvr_spi_multi(uint8_t *buff, uint32_t btr)
+static inline void rcvr_spi_multi(uint8_t *buff, uint32_t btr) noexcept
 {
     sspi_transceive_packet(nullptr, buff, btr);
 }
@@ -141,7 +140,7 @@ static inline void rcvr_spi_multi(uint8_t *buff, uint32_t btr)
 /* Send multiple byte */
 /* buff - ointer to the data */
 /* Number of bytes to send (multiple of 16) */
-static inline void xmit_spi_multi (const uint8_t *buff, uint32_t btx)
+static inline void xmit_spi_multi (const uint8_t *buff, uint32_t btx) noexcept
 {
     sspi_transceive_packet(buff, nullptr, btx);
 }
@@ -153,7 +152,7 @@ static inline void xmit_spi_multi (const uint8_t *buff, uint32_t btx)
 /*-----------------------------------------------------------------------*/
 
 /* wt - Timeout [ms] */
-int SDCard::wait_ready (uint32_t wt) /* 1:Ready, 0:Timeout */
+int SDCard::wait_ready (uint32_t wt)  noexcept/* 1:Ready, 0:Timeout */
 {
     uint8_t d;
     
@@ -174,7 +173,7 @@ int SDCard::wait_ready (uint32_t wt) /* 1:Ready, 0:Timeout */
 /* Deselect card and release SPI                                         */
 /*-----------------------------------------------------------------------*/
 
-void SDCard::deselect (void)
+void SDCard::deselect (void)  noexcept
 {
     sspi_deselect_device(&_sspi_device);
     xchg_spi(0xFF);    /* Dummy clock (force DO hi-z for multiple slave SPI) */
@@ -186,7 +185,7 @@ void SDCard::deselect (void)
 /* Select card and wait for ready                                        */
 /*-----------------------------------------------------------------------*/
 
-int SDCard::select (void)    /* 1:OK, 0:Timeout */
+int SDCard::select (void) noexcept    /* 1:OK, 0:Timeout */
 {
     sspi_master_setup_device(&_sspi_device);
     
@@ -205,7 +204,7 @@ int SDCard::select (void)    /* 1:OK, 0:Timeout */
 /*-----------------------------------------------------------------------*/
 /* buff - Data buffer */
 /* btr - Data block length (byte) */
-int SDCard::rcvr_datablock (uint8_t *buff, uint32_t btr)/* 1:OK, 0:Error */
+int SDCard::rcvr_datablock (uint8_t *buff, uint32_t btr) noexcept/* 1:OK, 0:Error */
 {
     uint8_t token;
     
@@ -233,7 +232,7 @@ int SDCard::rcvr_datablock (uint8_t *buff, uint32_t btr)/* 1:OK, 0:Error */
 /* buff - Pointer to 512 byte data to be sent */
 /* Token */
 
-int SDCard::xmit_datablock (const uint8_t *buff, uint8_t token) /* 1:OK, 0:Failed */
+int SDCard::xmit_datablock (const uint8_t *buff, uint8_t token) noexcept /* 1:OK, 0:Failed */
 {
     if (!wait_ready(500)) return 0;        /* Leading busy check: Wait for card ready to accept data block */
     
@@ -256,7 +255,7 @@ int SDCard::xmit_datablock (const uint8_t *buff, uint8_t token) /* 1:OK, 0:Faile
 /*-----------------------------------------------------------------------*/
 /* cmd - Command index */
 /* arg - Argument */
-uint8_t SDCard::send_cmd (uint8_t cmd, uint32_t arg)/* Return value: R1 resp (bit7==1:Failed to send) */
+uint8_t SDCard::send_cmd (uint8_t cmd, uint32_t arg) noexcept/* Return value: R1 resp (bit7==1:Failed to send) */
 {
     uint8_t n, res;
     
@@ -297,7 +296,7 @@ uint8_t SDCard::send_cmd (uint8_t cmd, uint32_t arg)/* Return value: R1 resp (bi
 /* Initialize disk drive                                                 */
 /*-----------------------------------------------------------------------*/
 
-uint8_t SDCard::disk_initialize ()
+uint8_t SDCard::disk_initialize () noexcept
 {
     uint8_t n, cmd, ty, ocr[4];
     
@@ -411,13 +410,13 @@ uint8_t SDCard::disk_initialize ()
 /*-----------------------------------------------------------------------*/
 
 ///* Physical drive number (0) */
-uint8_t SDCard::disk_status ()
+uint8_t SDCard::disk_status () noexcept
 {
     return status;
 }
 
 
-CARD_TYPE SDCard::card_type()
+CARD_TYPE SDCard::card_type() noexcept
 {
     return cardtype;
 }
@@ -432,7 +431,7 @@ CARD_TYPE SDCard::card_type()
 /* sector - Start sector number (LBA) */
 /* count - Number of sectors to read (1..128) */
 
-DRESULT SDCard::disk_read (uint8_t *buff, uint32_t sector, uint32_t count)
+DRESULT SDCard::disk_read (uint8_t *buff, uint32_t sector, uint32_t count) noexcept
 {
     uint8_t cmd;
     
@@ -462,7 +461,7 @@ DRESULT SDCard::disk_read (uint8_t *buff, uint32_t sector, uint32_t count)
 /* Start sector number (LBA) */
 /* Number of sectors to write (1..128) */
 
-DRESULT SDCard::disk_write (const uint8_t *buff, uint32_t sector, uint32_t count)
+DRESULT SDCard::disk_write (const uint8_t *buff, uint32_t sector, uint32_t count) noexcept
 {
     if (!count){
 #ifdef SD_DEBUG
@@ -509,7 +508,7 @@ DRESULT SDCard::disk_write (const uint8_t *buff, uint32_t sector, uint32_t count
 /* Pointer to the control data */
 
 
-DRESULT SDCard::disk_ioctl (uint8_t cmd, void *buff)
+DRESULT SDCard::disk_ioctl (uint8_t cmd, void *buff) noexcept
 {
     DRESULT res;
     uint8_t n, csd[16];
