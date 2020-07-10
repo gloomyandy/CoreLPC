@@ -25,6 +25,8 @@ public:
     uint16_t GetFrequency() const {return frequency;}
 
 private:
+    void SetOnOffTime();
+    
     bool pwmRunning;
     Pin pin;
     int chan;

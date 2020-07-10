@@ -16,13 +16,27 @@ SoftwarePWM::SoftwarePWM(Pin softPWMPin)
     chan = -1;
 }
 
+void SoftwarePWM::SetOnOffTime()
+{
+    if (chan >= 0) 
+    {
+        if (onTime == 0)
+            softwarePWMTimer.adjustOnOffTime(chan, period, period, 0, 0);
+        else if (onTime == period)
+            softwarePWMTimer.adjustOnOffTime(chan, period, period, 1, 1);
+        else
+            softwarePWMTimer.adjustOnOffTime(chan, onTime, period - onTime, 1, 0);
+    }
+}
+
+
 void SoftwarePWM::Enable()
 {
     chan = softwarePWMTimer.enable(pin, period, period);
     if (chan >= 0)
     {
-        pinMode(pin, OUTPUT_LOW);
         pwmRunning = true;
+        SetOnOffTime();
     }
 }
 
@@ -46,7 +60,7 @@ void SoftwarePWM::SetFrequency(uint16_t freq)
         period = 1000000;
     else
         period = 1000000/freq;
-    onTime = 0;    
+    onTime = 0;   
 }
 
 
@@ -57,15 +71,7 @@ void SoftwarePWM::SetDutyCycle(float duty)
     if (onTime != ot)
     {
         onTime = ot; //update the Duty
-        if (chan >= 0) 
-        {
-            if (onTime == 0)
-                softwarePWMTimer.adjustOnOffTime(chan, period, period, 0, 0);
-            else if (onTime == period)
-                softwarePWMTimer.adjustOnOffTime(chan, period, period, 1, 1);
-            else
-                softwarePWMTimer.adjustOnOffTime(chan, onTime, period - onTime, 1, 0);
-        }
+        SetOnOffTime();
     }
 }
 

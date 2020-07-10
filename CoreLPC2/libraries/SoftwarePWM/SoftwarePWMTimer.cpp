@@ -111,6 +111,7 @@ static void updateActive()
         if (endActive < 0)
         {
             LPC_RITIMER->COMPVAL = LPC_RITIMER->COUNTER + minimumTicks; 
+            LPC_RITIMER->CTRL |= RIT_CTRL_INT; // Clear Interrupt
             NVIC_EnableIRQ(RITIMER_IRQn); 
         }
     }
@@ -283,11 +284,13 @@ void SoftwarePWMTimer::Diagnostics(MessageType mtype)
     /* disable interrupts for the duration of the function */
     LPC_RITIMER->CTRL &= ~RIT_CTRL_TEN; //Stop the timer
     uint32_t now = LPC_RITIMER->COUNTER;
+    uint32_t delta = LPC_RITIMER->COMPVAL - now;
     for(int i = 0; i < MaxPWMPins; i++)
     {
         if (States[i].enabled)
-            reprap.GetPlatform().MessageF(mtype, "state %d next %d on %u off %u pin %d.%d\n", i, (int)(States[i].nextEvent - now), (unsigned)States[i].onOffTimes[States[i].onOffBuffer][1], (unsigned)States[i].onOffTimes[States[i].onOffBuffer][0], (States[i].pin >> 5), (States[i].pin & 0x1f) );
+            reprap.GetPlatform().MessageF(mtype, "state %d next %d on %u(%d) off %u(%d) pin %d.%d\n", i, (int)(States[i].nextEvent - now), (unsigned)States[i].onOffTimes[States[i].onOffBuffer][1], States[i].onOffVals[States[i].onOffBuffer][1], (unsigned)States[i].onOffTimes[States[i].onOffBuffer][0], States[i].onOffVals[States[i].onOffBuffer][0], (States[i].pin >> 5), (States[i].pin & 0x1f) );
     }
+    reprap.GetPlatform().MessageF(mtype, "Delta %d Start %d End %d\n", delta, startActive, endActive);
     LPC_RITIMER->CTRL |= RIT_CTRL_TEN;
 }
 #endif
