@@ -66,7 +66,7 @@ void AnalogInInit() noexcept
     Chip_ADC_Init(LPC_ADC, &ADCSetup);                                  //Init ADC and setup the ADCSetup struct
     ADCSetup.burstMode = true;                                          //update the struct so SetSampleRate knows we will be using burst mode
     Chip_ADC_SetSampleRate(LPC_ADC, &ADCSetup, 1000);
-    Chip_ADC_SetBurstCmd(LPC_ADC, ENABLE);                              //enable burst mode
+    //Chip_ADC_SetBurstCmd(LPC_ADC, ENABLE);                              //enable burst mode
     
     LPC_ADC->INTEN = 0x00; //disable all interrupts
     LPC_ADC->CR  |= (activeChannels & 0x000000FF );
@@ -113,10 +113,10 @@ void AnalogInEnableChannel(AnalogChannelNumber channel, bool enable) noexcept
 __attribute__((optimize("-O3")))
 uint16_t AnalogInReadChannel(AnalogChannelNumber channel) noexcept
 {
+    uint16_t val = 0;
     if(usingPreFilter == true)
     {
-<<<<<<< HEAD
-        if (ADCPreFilterRead((uint8_t)channel, &val) == ERROR)
+       if (preFilter.Read((uint8_t)channel, &val) == ERROR)
             ADCNotReadyCnt++;
     }
     else
@@ -130,15 +130,6 @@ uint16_t AnalogInReadChannel(AnalogChannelNumber channel) noexcept
         // Increase threshold for next time
         ADCErrorThreshold *= 2;
         AnalogInInit();
-=======
-        return preFilter.Read((uint8_t)channel);
-    }
-    else
-    {
-        uint16_t val = 0;
-        Chip_ADC_ReadValue(LPC_ADC, (uint8_t)channel, &val);
-        return val;
->>>>>>> upstream/v3-dev
     }
     return val;
 }

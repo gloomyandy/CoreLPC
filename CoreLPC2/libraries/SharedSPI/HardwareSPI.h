@@ -11,45 +11,39 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
-typedef struct
-{
-    LPC_SSP_T* sspHardwareDevice;
-    DMA_Channel_t rxDmaChannel;
-    DMA_Channel_t txDmaChannel;
-    Pin defaultPins[4];
-    SemaphoreHandle_t *sspTransferSemaphore;
-} SSP_DEVICE_T;
+extern "C" void SSP0_IRQHandler(void) noexcept;
+extern "C" void SSP1_IRQHandler(void) noexcept;
 
-
-
+class HardwareSPI;
+typedef void (*SPICallbackFunction)(HardwareSPI *spiDevice) noexcept;
 class HardwareSPI: public SPI
 {
 public:
-    HardwareSPI(const SSP_DEVICE_T* sspDevice) noexcept;
+    HardwareSPI(LPC_SSP_T* sspDevice, Pin* spiPins) noexcept;
     spi_status_t sspi_transceive_packet(const uint8_t *tx_data, uint8_t *rx_data, size_t len) noexcept;
-    spi_status_t sspi_transceive_packet_dma(const uint8_t *tx_data, uint8_t *rx_data, size_t len, DMA_TransferWidth_t transferWidth=DMA_WIDTH_BYTE) noexcept;
-    void setup_device(const struct sspi_device *device, bool master=true) noexcept;
+    void setup_device(const struct sspi_device *device) noexcept;
+    bool waitForTxEmpty() noexcept;
+    void configureDevice(uint32_t deviceMode, uint32_t bits, uint32_t clockMode, uint32_t bitRate, bool hardwareCS) noexcept;
+    void disable() noexcept;
+    void startTransfer(const uint8_t *tx_data, uint8_t *rx_data, size_t len, SPICallbackFunction ioComplete) noexcept;
+    void InitPins(Pin sck, Pin miso, Pin mosi, Pin cs) noexcept;
 
-    void SspDmaRxTransfer(const void *buf, uint32_t transferLength, DMA_TransferWidth_t transferWidth=DMA_WIDTH_BYTE) noexcept;
-    void SspDmaTxTransfer(const void *buf, uint32_t transferLength, DMA_TransferWidth_t transferWidth=DMA_WIDTH_BYTE) noexcept;
+    static HardwareSPI SSP0;
+    static HardwareSPI SSP1;
 
-    void Enable();
-    void Disable();
-    void FlushAll();
-    
 private:
-    const SSP_DEVICE_T* sspDevice;
+    LPC_SSP_T* ssp;
     bool needInit;
-    
-    void SspDmaRxTransferNI(const void *buf, uint32_t transferLength, DMA_TransferWidth_t transferWidth=DMA_WIDTH_BYTE) noexcept;
-    void SspDmaTxTransferNI(const void *buf, uint32_t transferLength, DMA_TransferWidth_t transferWidth=DMA_WIDTH_BYTE) noexcept;
+    Pin * const pins;
+    SPICallbackFunction callback;
+    TaskHandle_t waitingTask;
 
-    
-    void InitialiseHardware(bool master);
-    
-    
-    
+    void configurePins(bool hardwareCS) noexcept;
+    void configureMode(uint32_t deviceMode, uint32_t bits, uint32_t clockMode, uint32_t bitRate) noexcept;
+    void configureBaseDevice() noexcept;
+    friend void transferComplete(HardwareSPI *spiDevice) noexcept;
+    friend void SSP0_IRQHandler(void) noexcept;
+    friend void SSP1_IRQHandler(void) noexcept;
 };
-
 
 #endif

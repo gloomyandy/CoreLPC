@@ -55,7 +55,7 @@ void SoftwarePWMTimer::EnableChannel(SoftwarePWM *sChannel) noexcept
             UpdateChannel(sChannel, i);
             return;
         }
-    return -1;
+    }
 }
 
 void SoftwarePWMTimer::DisableChannel(SoftwarePWM *sChannel) noexcept

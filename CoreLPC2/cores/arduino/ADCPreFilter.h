@@ -18,7 +18,7 @@ public:
     ADCPreFilter() noexcept : adcPreFilterInitialised(false) { };
     
     bool Init() noexcept;
-    uint16_t Read(uint8_t channel) noexcept;
+    Status Read(uint8_t channel, uint16_t *val) noexcept;
     void UpdateChannels(uint8_t channels) noexcept;
 
     static constexpr uint8_t numberADCSamples = 8;
@@ -37,14 +37,23 @@ private:
 
 
 
-inline uint16_t ADCPreFilter::Read(uint8_t channel) noexcept
+inline Status ADCPreFilter::Read(uint8_t channel, uint16_t *val) noexcept
 {
+    uint32_t error = 0;
+    if(adcPreFilterInitialised == false)
+    {
+        return ERROR;
+    }
+    
     for(uint8_t i=0; i<numberADCSamples; i++)
     {
+        if (!ADC_DR_DONE(adcSamplesArray[i*NumADCChannels + channel]))
+            error++;
         median_buffer[i] = ((adcSamplesArray[i*NumADCChannels + channel] >> 4) & 0xFFF);
     }
 
-    return median_buffer[quick_median(median_buffer, numberADCSamples)];
+    *val = median_buffer[quick_median(median_buffer, numberADCSamples)];
+    return (error ? ERROR : SUCCESS);
 }
 
 

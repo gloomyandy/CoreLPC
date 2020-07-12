@@ -72,10 +72,6 @@ static inline spi_status_t sspi_write_packet(const uint8_t *buf, size_t len) noe
 class HardwareSPI;
 class SoftwareSPI;
 
-extern HardwareSPI ssp0;
-extern HardwareSPI ssp1;
-extern SoftwareSPI swspi0;
-
 #ifdef __cplusplus
 }
 #endif

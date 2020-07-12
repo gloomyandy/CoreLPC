@@ -30,8 +30,6 @@
  * @brief Wirish serial port interface.
  */
 
-//sdavi: Edited to use ringbuffers and UART0 DMA support
-
 #ifndef _WIRISH_HARDWARESERIAL_H_
 #define _WIRISH_HARDWARESERIAL_H_
 
@@ -46,7 +44,7 @@ class HardwareSerial : public Stream
 {
 
 public:
-    HardwareSerial(const struct usart_dev *usart_device, uint16_t rxRingBufferSize = 128, uint16_t txRingBufferSize = 256) noexcept;
+    HardwareSerial(const struct usart_dev *usart_device, uint16_t rxRingBufferSize = 128, uint16_t txRingBufferSize = 64) noexcept;
 
 
     /* Set up/tear down */
@@ -57,7 +55,7 @@ public:
     int peek(void) noexcept;
     int read(void) noexcept;
     void flush(void) noexcept;
-    size_t write(const uint8_t *buffer, size_t size) noexcept override;
+    size_t write(const uint8_t *buffer, size_t size)  noexcept override;
     size_t write(uint8_t) noexcept override;
     using Print::write;
     size_t canWrite() noexcept;
@@ -71,32 +69,19 @@ public:
     
     void SetRingBufferSizes(uint16_t rxRingBufferSize, uint16_t txRingBufferSize) noexcept;
 
-    void TxDMAInterrupt(bool error);
-    void RxDMAInterrupt(bool error);
-    
-    
-private:
-    const struct usart_dev * const usartDevice;
-    
-    uint16_t rxBufferSize;
-    uint16_t txBufferSize;
 
+private:
+    const struct usart_dev *usart_device;
+    RINGBUFF_T txRingBuffer;
+    RINGBUFF_T rxRingBuffer;
+    
     uint8_t *rxDataBuffer;
     uint8_t *txDataBuffer;
     
-    bool usingDMA;
+    uint16_t rxBufferSize;
+    uint16_t txBufferSize;
+    
     bool initialised;
-
-    volatile size_t tail; //tail for RX DMA Ringbuffer
-    volatile bool txPending;
-
-
-    GPDMA_CH_T *pDMAchRx;
-    
-    size_t GetRingBufferHead();
-    
-    RINGBUFF_T txRingBuffer;
-    RINGBUFF_T rxRingBuffer;
 
   protected:
 };
