@@ -10,22 +10,37 @@ SoftwarePWM::SoftwarePWM(Pin softPWMPin) noexcept:
         gpioPort((LPC_GPIO_T*)(LPC_GPIO0_BASE + ((softPWMPin & 0xE0)))),
         gpioPortPinBitPosition( 1 << (softPWMPin & 0x1f) ),
         period(0),
-        onTime(0)
+        onTime(0),
+        timerChan(-1)
 
 {
     pinMode(pin, OUTPUT_LOW);
+}
+
+void SoftwarePWM::AttachTimer() noexcept
+{
+    if (timerChan < 0)
+        timerChan = softwarePWMTimer.enable(this, onTime, period - onTime);
+}
+
+void SoftwarePWM::ReleaseTimer() noexcept
+{
+    if (timerChan >= 0)
+        softwarePWMTimer.disable(timerChan);
+    timerChan = -1;
 }
 
 void SoftwarePWM::Enable() noexcept
 {
     pwmRunning = true;
-    softwarePWMTimer.EnableChannel(this);
+    AttachTimer();
 }
+
 void SoftwarePWM::Disable() noexcept
 {
     pwmRunning = false;
     pinMode(pin, OUTPUT_LOW);
-    softwarePWMTimer.DisableChannel(this);
+    ReleaseTimer();
 }
 
 void SoftwarePWM::AnalogWrite(float ulValue, uint16_t freq, Pin pin) noexcept
@@ -53,26 +68,28 @@ void SoftwarePWM::AnalogWrite(float ulValue, uint16_t freq, Pin pin) noexcept
     if(newOnTime != onTime || newPeriod != period)
     {
         //Frequency or duty has changed, requires update
-        
-        Disable(); //Disable the channel and stop the interrupt
-        
+        if (newPeriod != period)
+            ReleaseTimer();            
         period = newPeriod;
         onTime = newOnTime;
         
         //check for 100% on or 100% off, no need for interrupts
         if(onTime == 0)
         {
-            gpioPort->CLR = gpioPortPinBitPosition; //Pin Low
+            Disable();
+            SetLow(); //Pin Low
         }
         else if(onTime == period)
         {
-            gpioPort->SET = gpioPortPinBitPosition; //Pin High
+            ReleaseTimer();
+            SetHigh(); //Pin High
             pwmRunning = true; //flag pwm "running" but interrupts are off
         }
         else
         {
             //Enable and use interrupts to generate the PWM signal
             Enable();
+            softwarePWMTimer.adjustOnOffTime(timerChan, onTime, period - onTime);
         }
     }
     else
@@ -82,12 +99,12 @@ void SoftwarePWM::AnalogWrite(float ulValue, uint16_t freq, Pin pin) noexcept
         if(pwmRunning == false)
         {
             // this pwm is not running, keep setting to zero as a precaution incase the same pin has accidently been used elsewhere
-            gpioPort->CLR = gpioPortPinBitPosition; //Pin Low
+            SetLow(); //Pin Low
         }
     }
 }
 
-uint32_t SoftwarePWM::CalculateDutyCycle(float newValue, uint32_t newPeriod)
+uint32_t SoftwarePWM::CalculateDutyCycle(float newValue, uint32_t newPeriod) noexcept
 {
     uint32_t ot = (uint32_t) (newPeriod * newValue);
     if(ot > newPeriod) ot = newPeriod;
