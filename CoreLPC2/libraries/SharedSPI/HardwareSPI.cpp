@@ -37,7 +37,7 @@ extern "C" void debugPrintf(const char* fmt, ...) __attribute__ ((format (printf
 #define SSPTCR(SSP) ((__IO uint32_t *)((__IO uint8_t *)(SSP) + 0x80))
 #define SSPTDR(SSP) ((__IO uint32_t *)((__IO uint8_t *)(SSP) + 0x8C))
 
-static inline void flushTxFifo(LPC_SSP_T* sspDevice)
+static inline void flushTxFifo(LPC_SSP_T* sspDevice) noexcept
 {
     if (sspDevice->SR & SR_TFE) return;
     // enable test mode access to the TX fifo 
@@ -53,7 +53,7 @@ static inline void flushTxFifo(LPC_SSP_T* sspDevice)
     //debugPrintf("status reg %x cnt %d\n", LPC_SSP0->SR, cnt);
 }
 
-static inline void flushRxFifo(LPC_SSP_T* sspDevice)
+static inline void flushRxFifo(LPC_SSP_T* sspDevice) noexcept
 {
     while(sspDevice->SR & SR_RNE)
     {
@@ -63,7 +63,7 @@ static inline void flushRxFifo(LPC_SSP_T* sspDevice)
 
 
 // Disable the device and flush any data from the fifos
-void HardwareSPI::disable()
+void HardwareSPI::disable() noexcept
 {
 #ifdef SSPI_DEBUG
     if( (ssp->SR & SR_BSY) ) debugPrintf("SPI Busy\n");
@@ -80,7 +80,7 @@ void HardwareSPI::disable()
 
 // Wait for transmitter empty returning true if timed out
 //static inline bool waitForTxEmpty(LPC_SSP_TypeDef* sspDevice)
-bool HardwareSPI::waitForTxEmpty()
+bool HardwareSPI::waitForTxEmpty() noexcept
 {
     int timeout = SPI_TIMEOUT;
     while (!(ssp->SR & SR_TFE) ) // TNF = 0 if full
@@ -93,7 +93,7 @@ bool HardwareSPI::waitForTxEmpty()
     return false;
 }
 
-static inline CHIP_SSP_BITS_T getSSPBits(uint8_t bits)
+static inline CHIP_SSP_BITS_T getSSPBits(uint8_t bits) noexcept
 {
     //we will only support 8 or 16bit
     
@@ -122,7 +122,7 @@ static inline CHIP_SSP_BITS_T getSSPBits(uint8_t bits)
 //       - CPHA=1  - data is captured on the second clock edge transition
 #define SPI_MODE_3  (SPI_CPOL | SPI_CPHA)
 
-static inline CHIP_SSP_CLOCK_MODE_T getSSPMode(uint8_t spiMode)
+static inline CHIP_SSP_CLOCK_MODE_T getSSPMode(uint8_t spiMode) noexcept
 {
     switch(spiMode)
     {
@@ -140,14 +140,14 @@ static inline CHIP_SSP_CLOCK_MODE_T getSSPMode(uint8_t spiMode)
     return SSP_CLOCK_CPHA0_CPOL0;
 }
 
-extern "C"  void SSP0_IRQHandler(void)
+extern "C"  void SSP0_IRQHandler(void) noexcept
 {
     Chip_SSP_DMA_Disable(LPC_SSP0);
     HardwareSPI *s = &HardwareSPI::SSP0;
     if (s->callback) s->callback(s);    
 }
 
-extern "C"  void SSP1_IRQHandler(void)
+extern "C"  void SSP1_IRQHandler(void) noexcept
 {
     Chip_SSP_DMA_Disable(LPC_SSP1);
     HardwareSPI *s = &HardwareSPI::SSP1;
@@ -162,7 +162,7 @@ void transferComplete(HardwareSPI *spiDevice) noexcept
     portYIELD_FROM_ISR(higherPriorityTaskWoken);
 }
 
-void HardwareSPI::configurePins(bool hardwareCS)
+void HardwareSPI::configurePins(bool hardwareCS) noexcept
 {
     // Attach the SSP module to the I/O pins, note that SSP0 can use pins either on port 0 or port 1
     for(int i = 0; i < (hardwareCS ? 4 : 3); i++)
@@ -173,7 +173,7 @@ void HardwareSPI::configurePins(bool hardwareCS)
     }
 }
 
-void HardwareSPI::initPins(Pin sck, Pin miso, Pin mosi, Pin cs)
+void HardwareSPI::initPins(Pin sck, Pin miso, Pin mosi, Pin cs) noexcept
 {
     if(ssp == LPC_SSP0)
     {
@@ -184,7 +184,7 @@ void HardwareSPI::initPins(Pin sck, Pin miso, Pin mosi, Pin cs)
     }    
 }
 
-void HardwareSPI::configureBaseDevice()
+void HardwareSPI::configureBaseDevice() noexcept
 {
     InitialiseDMA();
     if(ssp == LPC_SSP0)
@@ -203,7 +203,7 @@ void HardwareSPI::configureBaseDevice()
     }
 }
 
-void HardwareSPI::configureMode(uint32_t deviceMode, uint32_t bits, uint32_t clockMode, uint32_t bitRate)
+void HardwareSPI::configureMode(uint32_t deviceMode, uint32_t bits, uint32_t clockMode, uint32_t bitRate) noexcept
 {
     Chip_SSP_Set_Mode(ssp, deviceMode);
     Chip_SSP_SetFormat(ssp, bits, SSP_FRAMEFORMAT_SPI, clockMode);
@@ -212,7 +212,7 @@ void HardwareSPI::configureMode(uint32_t deviceMode, uint32_t bits, uint32_t clo
     Chip_SSP_Enable(ssp);    
 }
 
-void HardwareSPI::configureDevice(uint32_t deviceMode, uint32_t bits, uint32_t clockMode, uint32_t bitRate, bool hardwareCS)
+void HardwareSPI::configureDevice(uint32_t deviceMode, uint32_t bits, uint32_t clockMode, uint32_t bitRate, bool hardwareCS) noexcept
 {
     disable();
     Chip_SSP_Disable(ssp);
@@ -223,7 +223,7 @@ void HardwareSPI::configureDevice(uint32_t deviceMode, uint32_t bits, uint32_t c
 
 
 //setup the master device.
-void HardwareSPI::configureDevice(uint32_t bits, uint32_t clockMode, uint32_t bitRate)
+void HardwareSPI::configureDevice(uint32_t bits, uint32_t clockMode, uint32_t bitRate) noexcept
 {
     disable();
     Chip_SSP_Disable(ssp);
@@ -237,12 +237,12 @@ void HardwareSPI::configureDevice(uint32_t bits, uint32_t clockMode, uint32_t bi
 }
 
 
-HardwareSPI::HardwareSPI(LPC_SSP_T *sspDevice, Pin* spiPins):needInit(true), pins(spiPins)
+HardwareSPI::HardwareSPI(LPC_SSP_T *sspDevice, Pin* spiPins) noexcept :needInit(true), pins(spiPins)
 {
     ssp = sspDevice;    
 }
 
-void HardwareSPI::startTransfer(const uint8_t *tx_data, uint8_t *rx_data, size_t len, SPICallbackFunction ioComplete)
+void HardwareSPI::startTransfer(const uint8_t *tx_data, uint8_t *rx_data, size_t len, SPICallbackFunction ioComplete) noexcept
 {    
     static uint8_t dontCareRX = 0;
     static uint8_t dontCareTX = 0xFF;
@@ -282,7 +282,7 @@ void HardwareSPI::startTransfer(const uint8_t *tx_data, uint8_t *rx_data, size_t
     Chip_SSP_DMA_Enable(ssp);
 }
 
-spi_status_t HardwareSPI::transceivePacket(const uint8_t *tx_data, uint8_t *rx_data, size_t len)
+spi_status_t HardwareSPI::transceivePacket(const uint8_t *tx_data, uint8_t *rx_data, size_t len) noexcept
 {
     waitingTask = xTaskGetCurrentTaskHandle();
     startTransfer(tx_data, rx_data, len, transferComplete);

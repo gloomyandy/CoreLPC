@@ -1,3 +1,5 @@
+//Author: sdavi
+
 //SoftwareSPI
 
 
@@ -8,7 +10,7 @@ extern "C" void debugPrintf(const char* fmt, ...) __attribute__ ((format (printf
 
 SoftwareSPI SoftwareSPI::SWSSP0;
 
-bool SoftwareSPI::waitForTxEmpty()
+bool SoftwareSPI::waitForTxEmpty() noexcept
 {
     return false;
 }
@@ -22,7 +24,7 @@ void SoftwareSPI::initPins(Pin sck_pin, Pin miso_pin, Pin mosi_pin, Pin cs)
 }
 
 //setup the master device.
-void SoftwareSPI::configureDevice(uint32_t bits, uint32_t clockMode, uint32_t bitRate)
+void SoftwareSPI::configureDevice(uint32_t bits, uint32_t clockMode, uint32_t bitRate) noexcept
 {
     if(needInit)
     {
@@ -38,13 +40,14 @@ void SoftwareSPI::configureDevice(uint32_t bits, uint32_t clockMode, uint32_t bi
 }
 
 
-SoftwareSPI::SoftwareSPI():needInit(true),sck(NoPin),mosi(NoPin),miso(NoPin)
+SoftwareSPI::SoftwareSPI() noexcept
+    :needInit(true),sck(NoPin),mosi(NoPin),miso(NoPin)
 {
 
 }
 
 
-spi_status_t SoftwareSPI::transceivePacket(const uint8_t *tx_data, uint8_t *rx_data, size_t len)
+spi_status_t SoftwareSPI::transceivePacket(const uint8_t *tx_data, uint8_t *rx_data, size_t len) noexcept
 {
     for (uint32_t i = 0; i < len; ++i)
     {
@@ -67,7 +70,7 @@ spi_status_t SoftwareSPI::transceivePacket(const uint8_t *tx_data, uint8_t *rx_d
  //WikiPedia: https://en.wikipedia.org/wiki/Serial_Peripheral_Interface#Example_of_bit-banging_the_master_protocol
  
  */
-uint8_t SoftwareSPI::transfer_byte(uint8_t byte_out)
+uint8_t SoftwareSPI::transfer_byte(uint8_t byte_out) noexcept
 {
     uint8_t byte_in = 0;
     uint8_t bit;

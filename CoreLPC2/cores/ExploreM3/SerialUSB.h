@@ -17,36 +17,29 @@ class SerialUSB : public Stream {
 
 private:
     USBSerial *usbSerial;
-   // USB *usb;
     bool isConnected;
 
-#if defined(ENABLE_DFU)
-    //DFU *dfu;
-#endif
-
-    
 public:
-    SerialUSB();
-    //SerialUSB(CircBuffer<uint8_t> *rxBuffer, CircBuffer<uint8_t> *txBuffer);
+    SerialUSB() noexcept;
 
-    void begin(uint32_t baud);
-    void end();
+    void begin(uint32_t baud) noexcept;
+    void end() noexcept;
     
-    int available();
-    int peek();
-    int read();
+    int available() noexcept;
+    int peek() noexcept;
+    int read() noexcept;
     
-    void flush();
-    size_t write(uint8_t);
-    size_t write(const uint8_t *buffer, size_t size);
-    size_t write(const char *buffer, size_t size) { return write((const uint8_t *)buffer, size); }
+    void flush() noexcept;
+    size_t write(uint8_t) noexcept;
+    size_t write(const uint8_t *buffer, size_t size) noexcept;
+    size_t write(const char *buffer, size_t size) noexcept { return write((const uint8_t *)buffer, size); }
 
-    size_t canWrite() const;    
+    size_t canWrite() const noexcept;
 
-    void setInterruptPriority(uint32_t priority);
-    uint32_t getInterruptPriority();
+    void setInterruptPriority(uint32_t priority) noexcept;
+    uint32_t getInterruptPriority() noexcept;
 
-    bool IsConnected();
+    bool IsConnected() noexcept;
     
 };
 

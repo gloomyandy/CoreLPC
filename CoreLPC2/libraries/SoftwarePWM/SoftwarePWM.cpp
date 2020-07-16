@@ -3,74 +3,110 @@
 #include "SoftwarePWM.h"
 #include "SoftwarePWMTimer.h"
 
-extern "C" void debugPrintf(const char* fmt, ...) __attribute__ ((format (printf, 1, 2)));
 
+SoftwarePWM::SoftwarePWM(Pin softPWMPin) noexcept:
+        pwmRunning(false),
+        pin(softPWMPin),
+        gpioPort((LPC_GPIO_T*)(LPC_GPIO0_BASE + ((softPWMPin & 0xE0)))),
+        gpioPortPinBitPosition( 1 << (softPWMPin & 0x1f) ),
+        period(0),
+        onTime(0),
+        timerChan(-1)
 
-SoftwarePWM::SoftwarePWM(Pin softPWMPin)
 {
-    SetFrequency(0); // set to disabled
+    pinMode(pin, OUTPUT_LOW);
+}
+
+void SoftwarePWM::AttachTimer() noexcept
+{
+    if (timerChan < 0)
+        timerChan = softwarePWMTimer.enable(this, onTime, period - onTime);
+}
+
+void SoftwarePWM::ReleaseTimer() noexcept
+{
+    if (timerChan >= 0)
+        softwarePWMTimer.disable(timerChan);
+    timerChan = -1;
+}
+
+void SoftwarePWM::Enable() noexcept
+{
+    pwmRunning = true;
+    AttachTimer();
+}
+
+void SoftwarePWM::Disable() noexcept
+{
+    pwmRunning = false;
+    pinMode(pin, OUTPUT_LOW);
+    ReleaseTimer();
+}
+
+void SoftwarePWM::AnalogWrite(float ulValue, uint16_t freq, Pin pin) noexcept
+{
+    //Note: AnalogWrite gets called repeatedly by RRF for heaters
     
-    pwmRunning = false;
-    pin = softPWMPin;
-    pinMode(pin, OUTPUT_LOW);
-    chan = -1;
-}
+    const uint32_t newPeriod = (freq!=0)?(1000000/freq):0;
+    const uint32_t newOnTime = CalculateDutyCycle(ulValue, newPeriod);
 
-void SoftwarePWM::Enable()
-{
-    chan = softwarePWMTimer.enable(pin, period, period);
-    if (chan >= 0)
+    //Common Frequnecies used in RRF:
+    //Freq:   10Hz,     250Hz  and 500Hz
+    //Period: 100000us, 4000us and 2000us
+    //Typically 10Hz are used for Heat beds 250Hz is used for Hotends/fans and some fans may need up to 500Hz
+    
+
+    //if enforcing a minimum on/off time to prevent the same channel firing in rapid succession, we get:
+    // 100us = Min Duty:   0.1%,  2.5%  and 5%
+    // 50us  = Min Duty:   0.05%, 1.25% and 2.5%
+    // 10us  = Min Duty:   0.01%, 0.25% and 0.5%
+    constexpr uint16_t MinimumTime = 100; //microseconds
+
+    if(onTime < MinimumTime){ onTime = 0; }
+    if(onTime > (period-MinimumTime)){ onTime = period; }
+    
+    if(newOnTime != onTime || newPeriod != period)
     {
-        pinMode(pin, OUTPUT_LOW);
-        pwmRunning = true;
-    }
-}
-
-void SoftwarePWM::Disable()
-{
-    if (chan >= 0)
-    {
-        softwarePWMTimer.disable(chan);
-        chan = -1;
-    }
-    pinMode(pin, OUTPUT_LOW);
-    pwmRunning = false;
-}
-
-//Sets the freqneucy in Hz
-void SoftwarePWM::SetFrequency(uint16_t freq)
-{
-    frequency = freq;
-    //find the period in us
-    if (freq == 0)
-        period = 1000000;
-    else
-        period = 1000000/freq;
-    onTime = 0;    
-}
-
-
-void SoftwarePWM::SetDutyCycle(float duty)
-{
-    uint32_t ot = (uint32_t) ((float)(period * duty));
-    if(ot > period) ot = period;
-    if (onTime != ot)
-    {
-        onTime = ot; //update the Duty
-        if (chan >= 0) 
+        //Frequency or duty has changed, requires update
+        if (newPeriod != period)
+            ReleaseTimer();            
+        period = newPeriod;
+        onTime = newOnTime;
+        
+        //check for 100% on or 100% off, no need for interrupts
+        if(onTime == 0)
         {
-            if (onTime == 0)
-                softwarePWMTimer.adjustOnOffTime(chan, period, period, 0, 0);
-            else if (onTime == period)
-                softwarePWMTimer.adjustOnOffTime(chan, period, period, 1, 1);
-            else
-                softwarePWMTimer.adjustOnOffTime(chan, onTime, period - onTime, 1, 0);
+            Disable();
+            SetLow(); //Pin Low
+        }
+        else if(onTime == period)
+        {
+            ReleaseTimer();
+            SetHigh(); //Pin High
+            pwmRunning = true; //flag pwm "running" but interrupts are off
+        }
+        else
+        {
+            //Enable and use interrupts to generate the PWM signal
+            Enable();
+            softwarePWMTimer.adjustOnOffTime(timerChan, onTime, period - onTime);
+        }
+    }
+    else
+    {
+        //PWM not changed
+        
+        if(pwmRunning == false)
+        {
+            // this pwm is not running, keep setting to zero as a precaution incase the same pin has accidently been used elsewhere
+            SetLow(); //Pin Low
         }
     }
 }
 
-void SoftwarePWM::Check()
+uint32_t SoftwarePWM::CalculateDutyCycle(float newValue, uint32_t newPeriod) noexcept
 {
-
+    uint32_t ot = (uint32_t) (newPeriod * newValue);
+    if(ot > newPeriod) ot = newPeriod;
+    return ot;
 }
-

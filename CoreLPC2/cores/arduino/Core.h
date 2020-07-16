@@ -15,7 +15,6 @@
 #include "delay.h"
 #include "Reset.h"
 
-
 #include "interrupt_lpc.h"
 
 
@@ -23,15 +22,15 @@
 #undef yield            // eCv definition clashes with function 'yield' in wiring.c (can use _ecv_yield instead within annotations)
 
 
-extern void loop();
-extern void setup();
-extern void init( void );
+extern void loop() noexcept;
+extern void setup() noexcept;
+extern void init( void ) noexcept;
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-    void CoreSysTick(void);
+    void CoreSysTick(void) noexcept;
 #ifdef __cplusplus
 }// end exten "C"
 #endif
@@ -43,6 +42,7 @@ static const Pin NoPin = P_NC; //which =0xff
 #include "wiring_digital.h"
 #include "wirish_time.h"
 #include "wdt.h"
+
 
 #ifdef __cplusplus
 
@@ -70,19 +70,7 @@ enum AnalogChannelNumber : int8_t
     ADC7
 };
 
-constexpr uint8_t NumPwmChannels = 6;
-// Definitions for PWM channels
-enum EPWMChannel : int8_t
-{
-    NOT_ON_PWM=-1,
-    PWM1_1=0,
-    PWM1_2,
-    PWM1_3,
-    PWM1_4,
-    PWM1_5,
-    PWM1_6,
-};
-
+#include "pwm_176x.h"
 
 struct PinDescription
 {
@@ -112,13 +100,13 @@ enum SSPChannel : uint8_t
 
 
 #include "WCharacter.h"
-#include "HardwareSerial.h"
 #include "Stream.h"
-#include "SerialUSB.h"
 #include "WMath.h"
 #include "AnalogIn.h"
 #include "AnalogOut.h"
+#include "HardwareSerial.h"
 #include "ConfigurableUART.h"
+#include "SerialUSB.h"
 
 #endif // __cplusplus
 

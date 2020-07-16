@@ -18,14 +18,11 @@ typedef enum
 class SPI
 {
 public:
-    virtual void configureDevice(uint32_t bits, uint32_t clockMode, uint32_t bitRate);
-    virtual spi_status_t transceivePacket(const uint8_t *tx_data, uint8_t *rx_data, size_t len);    
-    virtual bool waitForTxEmpty();
-    virtual void initPins(Pin sck, Pin miso, Pin mosi, Pin cs = NoPin);
-    static SPI *getSSPDevice(SSPChannel channel);
+    virtual void configureDevice(uint32_t bits, uint32_t clockMode, uint32_t bitRate) noexcept;
+    virtual spi_status_t transceivePacket(const uint8_t *tx_data, uint8_t *rx_data, size_t len) noexcept;    
+    virtual bool waitForTxEmpty() noexcept;
+    virtual void initPins(Pin sck, Pin miso, Pin mosi, Pin cs = NoPin) noexcept;
+    static SPI *getSSPDevice(SSPChannel channel) noexcept;
 };
-
-
-
 
 #endif

@@ -8,6 +8,20 @@
  *   : - Uses the "Burst" mode of the LPC to continously sample each of the selected ADC channels once enabled
  *   : - Resolution is 12bit
  */
+
+
+/*
+ - From Errata sheet Rev. 10.4 — 17 March 2020
+
+ Noise caused by I/O switching activity on pins close to the ADC input channels or caused by the board design/layout
+ can couple into the ADC input channels. This causes the ADC conversion results to be corrupted up to 0xFFF.
+ The issue occurs more frequently at -45 C and when toggling the I/O pins adjacent to the ADC input channels.
+
+- SD some users were seeing large spikes in temp readings likey caused by this issue. The glitch only seems to
+ occur for a sample or two and a prefilter was added to help eliminate the glitched samples.
+ */
+
+
 #include "AnalogIn.h"
 #include "chip.h"
 #include "ADCPreFilter.h"
@@ -22,6 +36,8 @@ static uint8_t activeChannels = 0;
 
 static bool usingPreFilter = false;
 const unsigned int numberSamples = 8;
+
+static ADCPreFilter preFilter;
 
 typedef struct
 {
@@ -43,29 +59,31 @@ const adcChannelConfig_st AdcConfig[numChannels]=
 
 
 // Module initialisation
-void AnalogInInit()
+void AnalogInInit() noexcept
 {
     if (ADCInitCnt++ > 0)
         Chip_ADC_DeInit(LPC_ADC);
     Chip_ADC_Init(LPC_ADC, &ADCSetup);                                  //Init ADC and setup the ADCSetup struct
-    Chip_ADC_SetSampleRate(LPC_ADC, &ADCSetup, ADC_MAX_SAMPLE_RATE);    //200kHz
+    ADCSetup.burstMode = true;                                          //update the struct so SetSampleRate knows we will be using burst mode
+    Chip_ADC_SetSampleRate(LPC_ADC, &ADCSetup, 1000);
+    //Chip_ADC_SetBurstCmd(LPC_ADC, ENABLE);                              //enable burst mode
     
     LPC_ADC->INTEN = 0x00; //disable all interrupts
     LPC_ADC->CR  |= (activeChannels & 0x000000FF );
     Chip_ADC_SetBurstCmd(LPC_ADC, ENABLE);                              //enable burst mode
 }
 
-void ConfigureADCPreFilter(bool enable, uint8_t numSamples, uint32_t sampleRateHz)
+void ConfigureADCPreFilter(bool enable) noexcept
 {
     if(enable == true)
     {
-        usingPreFilter = ADCPreFilterInit(numSamples, sampleRateHz);
+        usingPreFilter = preFilter.Init();
     }
 }
 
 
 // Enable or disable a channel.
-void AnalogInEnableChannel(AnalogChannelNumber channel, bool enable)
+void AnalogInEnableChannel(AnalogChannelNumber channel, bool enable) noexcept
 {
 	if (channel != NO_ADC && (unsigned int)channel < numChannels)
 	{
@@ -82,16 +100,23 @@ void AnalogInEnableChannel(AnalogChannelNumber channel, bool enable)
 			activeChannels &= ~(1u << channel);
             LPC_ADC->CR  = (LPC_ADC->CR  & 0xFFFFFF00) | (activeChannels & 0x000000FF );
 		}
+        
+        if(usingPreFilter == true)
+        {
+            preFilter.UpdateChannels(activeChannels);
+        }
+        
     }
 }
 
 // Read the most recent 12-bit result from a channel
-uint16_t AnalogInReadChannel(AnalogChannelNumber channel)
+__attribute__((optimize("-O3")))
+uint16_t AnalogInReadChannel(AnalogChannelNumber channel) noexcept
 {
     uint16_t val = 0;
     if(usingPreFilter == true)
     {
-        if (ADCPreFilterRead((uint8_t)channel, &val) == ERROR)
+       if (preFilter.Read((uint8_t)channel, &val) == ERROR)
             ADCNotReadyCnt++;
     }
     else
@@ -111,13 +136,13 @@ uint16_t AnalogInReadChannel(AnalogChannelNumber channel)
 
 
 // Start converting the enabled channels
-void AnalogInStartConversion(uint32_t channels)
+void AnalogInStartConversion(uint32_t channels) noexcept
 {
 }
 
 
 // Convert an  pin number to the corresponding ADC channel number
-AnalogChannelNumber PinToAdcChannel(uint32_t pin)
+AnalogChannelNumber PinToAdcChannel(uint32_t pin) noexcept
 {
     return g_APinDescription[pin].ulADCChannelNumber;
 }

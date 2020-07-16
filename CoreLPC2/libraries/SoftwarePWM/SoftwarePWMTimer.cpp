@@ -60,9 +60,8 @@ static constexpr int MaxPWMPins = 8;
 
 typedef struct {
     uint32_t nextEvent;
-    Pin pin;
+    SoftwarePWM *pwm;
     uint32_t onOffTimes[2][2];
-    uint8_t onOffVals[2][2];
     uint8_t state;
     uint8_t onOffBuffer;
     bool newTimes;
@@ -111,6 +110,7 @@ static void updateActive()
         if (endActive < 0)
         {
             LPC_RITIMER->COMPVAL = LPC_RITIMER->COUNTER + minimumTicks; 
+            LPC_RITIMER->CTRL |= RIT_CTRL_INT; // Clear Interrupt
             NVIC_EnableIRQ(RITIMER_IRQn); 
         }
     }
@@ -143,22 +143,20 @@ void SoftwarePWMTimer::disable(int chan)
     updateActive();
 }
 
-int SoftwarePWMTimer::enable(Pin pin, uint32_t onTime, uint32_t offTime)
+int SoftwarePWMTimer::enable(SoftwarePWM *pwm, uint32_t onTime, uint32_t offTime)
 {
     // find a free slot
     for(int i = 0; i < MaxPWMPins; i++)
         if (!States[i].enabled)
         {
             PWMState& s = States[i];
-            s.pin = pin;
-            s.onOffTimes[0][0] = offTime*ticksPerMicrosecond;
-            s.onOffTimes[0][1] = onTime*ticksPerMicrosecond;
-            s.onOffVals[0][0] = s.onOffVals[0][1] = 0;
-            s.onOffVals[1][0] = s.onOffVals[1][1] = 0;
+            s.pwm = pwm;
+            s.onOffTimes[0][0] = onTime*ticksPerMicrosecond;
+            s.onOffTimes[0][1] = offTime*ticksPerMicrosecond;
             s.onOffBuffer = 0;
             s.state = 0;
-            pinMode(pin, OUTPUT_LOW);
-            s.nextEvent = LPC_RITIMER->COUNTER + offTime;
+            pwm->SetHigh();
+            s.nextEvent = LPC_RITIMER->COUNTER + onTime;
             s.newTimes = false;
             s.enabled = true;
             updateActive();  
@@ -168,14 +166,12 @@ int SoftwarePWMTimer::enable(Pin pin, uint32_t onTime, uint32_t offTime)
     return -1;
 }
 
-void SoftwarePWMTimer::adjustOnOffTime(int chan, uint32_t onTime, uint32_t offTime, uint32_t onVal, uint32_t offVal)
+void SoftwarePWMTimer::adjustOnOffTime(int chan, uint32_t onTime, uint32_t offTime)
 {
     PWMState& s = States[chan];
     uint32_t buffer = s.onOffBuffer ^ 1;
-    s.onOffTimes[buffer][0] = offTime*ticksPerMicrosecond;
-    s.onOffTimes[buffer][1] = onTime*ticksPerMicrosecond;
-    s.onOffVals[buffer][0] = offVal;
-    s.onOffVals[buffer][1] = onVal;
+    s.onOffTimes[buffer][0] = onTime*ticksPerMicrosecond;
+    s.onOffTimes[buffer][1] = offTime*ticksPerMicrosecond;
     s.newTimes = true;
 }
 
@@ -200,15 +196,19 @@ void RIT_IRQHandler(void)
                 s.state ^= 1;
                 const uint32_t newState = s.state;
                 // do we need to switch to a new set of timing parameters?
-                if (s.newTimes && newState == 0)
+                if (newState == 0)
                 {
-                    s.onOffBuffer ^= 1;
-                    s.newTimes = false;
+                    s.pwm->SetHigh();
+                    if (s.newTimes)
+                    {
+                        s.onOffBuffer ^= 1;
+                        s.newTimes = false;
+                    }
                 }
-                const uint32_t buffer = s.onOffBuffer;
-                GPIO_PinWrite(s.pin, s.onOffVals[buffer][newState]);
+                else
+                    s.pwm->SetLow();
                 // adjust next time by any drift to keep things in sync
-                delta += s.onOffTimes[buffer][newState];
+                delta += s.onOffTimes[s.onOffBuffer][newState];
                 s.nextEvent = now + delta;
                 // don't allow correction to go too far!
                 if (delta < 0)
@@ -283,11 +283,13 @@ void SoftwarePWMTimer::Diagnostics(MessageType mtype)
     /* disable interrupts for the duration of the function */
     LPC_RITIMER->CTRL &= ~RIT_CTRL_TEN; //Stop the timer
     uint32_t now = LPC_RITIMER->COUNTER;
+    uint32_t delta = LPC_RITIMER->COMPVAL - now;
     for(int i = 0; i < MaxPWMPins; i++)
     {
         if (States[i].enabled)
-            reprap.GetPlatform().MessageF(mtype, "state %d next %d on %u off %u pin %d.%d\n", i, (int)(States[i].nextEvent - now), (unsigned)States[i].onOffTimes[States[i].onOffBuffer][1], (unsigned)States[i].onOffTimes[States[i].onOffBuffer][0], (States[i].pin >> 5), (States[i].pin & 0x1f) );
+            reprap.GetPlatform().MessageF(mtype, "state %d next %d on %u off %u pin %d.%d\n", i, (int)(States[i].nextEvent - now), (unsigned)States[i].onOffTimes[States[i].onOffBuffer][0], (unsigned)States[i].onOffTimes[States[i].onOffBuffer][1],  (States[i].pwm->GetPin() >> 5), (States[i].pwm->GetPin() & 0x1f) );
     }
+    reprap.GetPlatform().MessageF(mtype, "Delta %d Start %d End %d\n", delta, startActive, endActive);
     LPC_RITIMER->CTRL |= RIT_CTRL_TEN;
 }
 #endif

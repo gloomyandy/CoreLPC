@@ -10,22 +10,20 @@ SoftwarePWM* softwarePWMEntries[MaxNumberSoftwarePWMPins] = {};
 static uint32_t pinsOnSoftPWM[5] = {0}; //5 ports;
 
 
-bool CanDoSoftwarePWM(Pin pin)
+bool CanDoSoftwarePWM(Pin pin) noexcept
 {
     (void)pin;
     
     //SoftwarePWM can be on any pin, the only restriction is the Max number we allow
-    // so search for a free slot
-   for(size_t i=0; i<MaxNumberSoftwarePWMPins; i++)
+    for(size_t i=0; i<MaxNumberSoftwarePWMPins; i++)
     {
-        if(softwarePWMEntries[i] == nullptr) return true;
+        if(softwarePWMEntries[i] == nullptr) return true; //found a free slot
     }
-    // no free slots available
-    return false;
-    
+
+    return false;// no free slots
 }
 
-bool ConfigurePinForSoftwarePWM(Pin pin)
+bool ConfigurePinForSoftwarePWM(Pin pin) noexcept
 {
     const uint8_t port = (pin >> 5);
     const uint32_t portPinPosition = 1 << (pin & 0x1f);
@@ -52,14 +50,14 @@ bool ConfigurePinForSoftwarePWM(Pin pin)
     return false;
 }
 
-void ReleaseSoftwarePWMPin(Pin pin)
+void ReleaseSoftwarePWMPin(Pin pin) noexcept
 {
     const uint8_t port = (pin >> 5);
     const uint32_t portPinPosition = 1 << (pin & 0x1f);
 
     if( !(pinsOnSoftPWM[port] & portPinPosition))
     {
-        return;// pin not condifigured as a Software PWM
+        return;// pin not configured as a Software PWM
     }
 
     //find the pin
@@ -71,30 +69,24 @@ void ReleaseSoftwarePWMPin(Pin pin)
             softwarePWMEntries[i]->Disable();
             delete(softwarePWMEntries[i]);
             softwarePWMEntries[i] = nullptr;
-            pinsOnSoftPWM[i] &= ~(portPinPosition);
+            pinsOnSoftPWM[port] &= ~(portPinPosition);
             return;
         }
-    }
-
-    
+    }    
 }
 
-bool AnalogWriteSoftwarePWM(float ulValue, uint16_t freq, Pin pin)
+bool AnalogWriteSoftwarePWM(float ulValue, uint16_t freq, Pin pin) noexcept
 {
     //Is the pin configured as softwarePWM?
     
-    //debugPrintf("[AnalogOutSoftwarePWM] Write -  %d.%d %f %d\n", (pin >> 5), (pin & 0x1f), ulValue, freq);
-
     const uint8_t port = (pin >> 5);
     const uint32_t portPinPosition = 1 << (pin & 0x1f);
     
     if( !(pinsOnSoftPWM[port] & portPinPosition))
     {
-        return false;// pin not condifigured as a Software PWM
+        return false;// pin not configured as a Software PWM
     }
     
-    
-    //already configured to be softwarePWM
     int slot = -1;
 
     //find the pin
@@ -113,30 +105,7 @@ bool AnalogWriteSoftwarePWM(float ulValue, uint16_t freq, Pin pin)
         return false;
     }
     
-    if(softwarePWMEntries[slot]->GetFrequency() != freq)
-    {
-        //Frequency has changed
-        softwarePWMEntries[slot]->Disable();
-        softwarePWMEntries[slot]->SetFrequency(freq);
-        softwarePWMEntries[slot]->SetDutyCycle(ulValue);
-        // leave disabled if freq is zero
-        if (freq != 0)
-            softwarePWMEntries[slot]->Enable();
-    }
-    else
-    {
-        //Frequency unchanged, update Duty Cycle
-        softwarePWMEntries[slot]->SetDutyCycle(ulValue);
-    }
-    
-    if( !softwarePWMEntries[slot]->IsRunning() )
-    {
-        softwarePWMEntries[slot]->Enable(); // enable if not running
-    }
-    else
-    {
-        softwarePWMEntries[slot]->Check(); // check the PWM is still functioning
-    }
+    softwarePWMEntries[slot]->AnalogWrite(ulValue, freq, pin);
     
     return true;
 }

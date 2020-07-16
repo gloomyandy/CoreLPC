@@ -12,7 +12,8 @@ ConfigurableUART UART_Slot2;
 
 //Wrapper class around HardwareSerial for configurable Serial in RRF
 
-ConfigurableUART::ConfigurableUART(): serialPort(nullptr)
+ConfigurableUART::ConfigurableUART() noexcept
+    : serialPort(nullptr) 
 {
 }
 
@@ -64,7 +65,7 @@ const uartPin_t uartPins[] =
 #endif
 };
 
-int8_t ConfigurableUART::GetUARTPortNumber()
+int8_t ConfigurableUART::GetUARTPortNumber() noexcept
 {
     if(serialPort == nullptr) return -1;
     
@@ -82,7 +83,7 @@ int8_t ConfigurableUART::GetUARTPortNumber()
     return -1;
 }
 
-bool ConfigurableUART::Configure(Pin rx, Pin tx)
+bool ConfigurableUART::Configure(Pin rx, Pin tx) noexcept
 {
     //Find the UART based on the confgured Pins
 
@@ -136,11 +137,7 @@ bool ConfigurableUART::Configure(Pin rx, Pin tx)
         }
                 
         //Configure the Pin Functions to UART
-        //TXD
-        GPIO_PinDirection(txEntry->upin, LPC_OUTPUT);
         GPIO_PinFunction(txEntry->upin, txEntry->pinselFunction);
-        //RXD
-        GPIO_PinDirection(rxEntry->upin, LPC_INPUT);
         GPIO_PinFunction(rxEntry->upin, rxEntry->pinselFunction);
         
         return true; // success
@@ -150,7 +147,7 @@ bool ConfigurableUART::Configure(Pin rx, Pin tx)
     
 }
 
-void ConfigurableUART::begin(uint32_t baud)
+void ConfigurableUART::begin(uint32_t baud) noexcept
 {
     if(serialPort != nullptr)
     {
@@ -158,7 +155,7 @@ void ConfigurableUART::begin(uint32_t baud)
     }
 }
 
-void ConfigurableUART::end(void)
+void ConfigurableUART::end(void) noexcept
 {
     if(serialPort != nullptr)
     {
@@ -166,7 +163,7 @@ void ConfigurableUART::end(void)
     }
 }
 
-int ConfigurableUART::read(void)
+int ConfigurableUART::read(void) noexcept
 {
     if(serialPort != nullptr)
     {
@@ -176,7 +173,7 @@ int ConfigurableUART::read(void)
     return -1;
 }
 
-int ConfigurableUART::peek(void)
+int ConfigurableUART::peek(void) noexcept
 {
     if(serialPort != nullptr)
     {
@@ -186,7 +183,7 @@ int ConfigurableUART::peek(void)
     return -1;
 }
 
-int ConfigurableUART::available(void)
+int ConfigurableUART::available(void) noexcept
 {
     if(serialPort != nullptr)
     {
@@ -195,7 +192,7 @@ int ConfigurableUART::available(void)
     return 0;
 }
 
-int ConfigurableUART::availableForWrite(void)
+int ConfigurableUART::availableForWrite(void) noexcept
 {
     if(serialPort != nullptr)
     {
@@ -205,7 +202,7 @@ int ConfigurableUART::availableForWrite(void)
     return 0;
 }
 
-size_t ConfigurableUART::canWrite()
+size_t ConfigurableUART::canWrite() noexcept
 {
     if(serialPort != nullptr)
     {
@@ -214,7 +211,7 @@ size_t ConfigurableUART::canWrite()
     return 0;
 }
 
-size_t ConfigurableUART::write(const uint8_t ch)
+size_t ConfigurableUART::write(const uint8_t ch) noexcept
 {
     if(serialPort != nullptr)
     {
@@ -225,7 +222,7 @@ size_t ConfigurableUART::write(const uint8_t ch)
 }
 
 
-size_t ConfigurableUART::write(const uint8_t *buffer, size_t size)
+size_t ConfigurableUART::write(const uint8_t *buffer, size_t size) noexcept
 {
     if(serialPort != nullptr)
     {
@@ -235,7 +232,7 @@ size_t ConfigurableUART::write(const uint8_t *buffer, size_t size)
     return size;
 }
 
-void ConfigurableUART::flush(void)
+void ConfigurableUART::flush(void) noexcept
 {
     if(serialPort != nullptr)
     {
@@ -244,7 +241,7 @@ void ConfigurableUART::flush(void)
 }
 
 
-void ConfigurableUART::setInterruptPriority(uint32_t priority)
+void ConfigurableUART::setInterruptPriority(uint32_t priority) noexcept
 {
     if(serialPort != nullptr)
     {
@@ -252,7 +249,7 @@ void ConfigurableUART::setInterruptPriority(uint32_t priority)
     }
 }
 
-uint32_t ConfigurableUART::getInterruptPriority()
+uint32_t ConfigurableUART::getInterruptPriority() noexcept
 {
     if(serialPort != nullptr)
     {
@@ -262,7 +259,7 @@ uint32_t ConfigurableUART::getInterruptPriority()
     return 0;
 }
 
-bool ConfigurableUART::IsConnected()
+bool ConfigurableUART::IsConnected() noexcept
 {
     if(serialPort != nullptr) return true;
     return false;

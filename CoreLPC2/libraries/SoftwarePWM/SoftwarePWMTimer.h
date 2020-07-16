@@ -14,13 +14,12 @@
 * limitations under the License.
 */
 
-//SD:: Code from mbed us_ticker_api merged into class for Software PWM Timer
-
 #ifndef SOFTWAREPWMTIMER_H
 #define SOFTWAREPWMTIMER_H
 
 #include "Core.h"
 #include "chip.h"
+#include "SoftwarePWM.h"
 #ifdef LPC_DEBUG
 #include "MessageType.h"
 #endif
@@ -31,9 +30,9 @@ class SoftwarePWMTimer
     
 public:
     SoftwarePWMTimer();
-    int enable(Pin pin, uint32_t onTime, uint32_t offTime);
+    int enable(SoftwarePWM *pwm, uint32_t onTime, uint32_t offTime);
     void disable(int chan);
-    void adjustOnOffTime(int chan, uint32_t onTime, uint32_t offTime, uint32_t onVal, uint32_t offVal);
+    void adjustOnOffTime(int chan, uint32_t onTime, uint32_t offTime);
 
 #ifdef LPC_DEBUG
     void Diagnostics(MessageType mtype);

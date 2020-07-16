@@ -1,86 +1,227 @@
-//Author: sdavi
+//Author: sdavi/gloomyandy
 #include "Core.h"
 #include "chip.h"
 
-//Timer PWM
-#define TimerPWM_Slot1 (0x01)
-#define TimerPWM_Slot2 (0x02)
-#define TimerPWM_Slot3 (0x04)
-
-
 extern "C" void debugPrintf(const char* fmt, ...) __attribute__ ((format (printf, 1, 2)));
 
+template<class T, size_t N>
+constexpr size_t size(T (&)[N]) { return N; }
 
-struct TimerPwm_t
+
+static bool PWMEnabled = false;
+Pin UsedHardwarePWMChannel[NumPwmChannels] = {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin};
+
+void PWM_Set( Pin pin, uint32_t dutyCycle )
 {
-    LPC_TIMER_T *timer;
-    Pin* const timerPins;
-    uint16_t frequency;
-};
+    //find entry in array
+    for(uint8_t i=0;i<size(PinMap_PWM); i++)
+    {
+        if(PinMap_PWM[i].pinNumber == pin)
+        {
+            GPIO_PinFunction(pin, PinMap_PWM[i].PinFunSel); //configure pin to PWM
+            switch(PinMap_PWM[i].pwmChannelNumber)
+            {
+                case PWM1_1:
+                    LPC_PWM1->MR1 = dutyCycle;
+                    LPC_PWM1->LER|= PWM_LER1_EN;
+                    LPC_PWM1->PCR|= PWM_PWMENA1;
+                    break;
+                case PWM1_2:
+                    LPC_PWM1->MR2 = dutyCycle;
+                    LPC_PWM1->LER|= PWM_LER2_EN;
+                    LPC_PWM1->PCR|= PWM_PWMENA2;
+                    break;
+                case PWM1_3:
+                    LPC_PWM1->MR3 = dutyCycle;
+                    LPC_PWM1->LER|= PWM_LER3_EN;
+                    LPC_PWM1->PCR|= PWM_PWMENA3;
+                    break;
+                case PWM1_4:
+                    LPC_PWM1->MR4 = dutyCycle;
+                    LPC_PWM1->LER|= PWM_LER4_EN;
+                    LPC_PWM1->PCR|= PWM_PWMENA4;
+                    break;
+                case PWM1_5:
+                    LPC_PWM1->MR5 = dutyCycle;
+                    LPC_PWM1->LER|= PWM_LER5_EN;
+                    LPC_PWM1->PCR|= PWM_PWMENA5;
+                    break;
+                case PWM1_6:
+                    LPC_PWM1->MR6 = dutyCycle;
+                    LPC_PWM1->LER|= PWM_LER6_EN;
+                    LPC_PWM1->PCR|= PWM_PWMENA6;
+                    break;
+            }
+        }
+    }
+}
 
-Pin Timer2PWMPins[MaxTimerEntries] = {NoPin, NoPin, NoPin};
-static uint8_t servoOutputUsed = 0;
-static bool servoTimerInitialised = false;
-static const TimerPwm_t ServoTimerPWM = {LPC_TIMER2, Timer2PWMPins, 50};
-static uint32_t pinsOnATimer[5] = {0}; // 5 Ports
 
+void PWM_Clear( Pin pin)
+{
+    for(uint8_t i=0;i<size(PinMap_PWM); i++)
+    {
+        if(PinMap_PWM[i].pinNumber == pin)
+        {
+            //Disable the PWM Outout
+            switch(PinMap_PWM[i].pwmChannelNumber)
+            {
+                case PWM1_1:
+                    LPC_PWM1->PCR &= ~PWM_PWMENA1;
+                    break;
+                case PWM1_2:
+                    LPC_PWM1->PCR &= ~PWM_PWMENA2;
+                    break;
+                case PWM1_3:
+                    LPC_PWM1->PCR &= ~PWM_PWMENA3;
+                    break;
+                case PWM1_4:
+                    LPC_PWM1->PCR &= ~PWM_PWMENA4;
+                    break;
+                case PWM1_5:
+                    LPC_PWM1->PCR &= ~PWM_PWMENA5;
+                    break;
+                case PWM1_6:
+                    LPC_PWM1->PCR &= ~PWM_PWMENA6;
+                    break;
+            }
+        }
+    }
+}
+
+
+
+// AnalogWrite to a PWM pin
+// Return true if successful, false if we need to fall back to digitalWrite
+bool AnalogWriteHWPWM(const PinDescription& pinDesc, float ulValue, uint16_t freq, Pin pin) noexcept
+    pre(0.0 <= ulValue; ulValue <= 1.0)
+    pre((pinDesc.ulPinAttribute & PIN_ATTR_PWM) != 0)
+{
+
+    //Is this pin configured for HW PWM ?
+    if(pinDesc.ulPWMChannel == NOT_ON_PWM) return false;
+    
+    
+    const uint8_t pwmChannel = (uint8_t) pinDesc.ulPWMChannel;
+    if(UsedHardwarePWMChannel[pwmChannel] == NoPin) return false; //Pin PWM capable, but not configured as PWM
+    
+    if(freq != HardwarePWMFrequency) return false; //HW PWM not configured at the requested frequency
+
+    
+    if(!PWMEnabled)
+    {
+        //NOTE: Manual states LPC pwm pins all share the same period!
+        //NOTE: pclk set to 1/4 in system_LPC17xx.c
+
+        //Enable and Setup HW PWM
+        Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_PWM1); //enable power and clocking
+        
+        LPC_PWM1->PR = 0; // no pre-scale
+        LPC_PWM1->IR = 0;// Disable all interrupt flags for PWM
+        LPC_PWM1->MCR = 1 << 1; // Single PWMMode -> reset TC on match 0
+
+        LPC_PWM1->TCR = PWM_TCR_RESET; //set reset
+
+        const unsigned int pwm_clock_mhz = SystemCoreClock / 4000000;
+        uint32_t ticks = pwm_clock_mhz * (1000000/HardwarePWMFrequency);
+        LPC_PWM1->MR0 = ticks; //Set the period (for ALL channels)
+        LPC_PWM1->LER|= PWM_LER0_EN;
+        
+        // enable counter and pwm, clear reset
+        LPC_PWM1->TCR = PWM_TCR_CNT_EN | PWM_TCR_PWM_EN;
+
+        PWMEnabled = true;
+    }
+
+    uint32_t v = (uint32_t)((float)(LPC_PWM1->MR0) * ulValue); //calculate duty cycle
+    if (v == LPC_PWM1->MR0) v++; //ensure not equal to MR0
+
+    PWM_Set(pin, v); //set the duty cycle for the pin
+
+    return true;
+}
+
+bool ReleaseHWPWMPin(Pin pin) noexcept
+{
+    for(uint8_t i=0; i<NumPwmChannels; i++)
+    {
+        if(UsedHardwarePWMChannel[i] == pin)
+        {
+            //stop PWM
+            PWM_Clear(pin);
+            UsedHardwarePWMChannel[i] = NoPin;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool CanDoHWPWM(Pin pin) noexcept
+{
+    for(uint8_t i=0; i<size(PinMap_PWM); i++)
+    {
+        if(PinMap_PWM[i].pinNumber == pin)
+        {
+            //some PWM pins share the same pwm channel, so check another pin on same channel is not in use
+            if(UsedHardwarePWMChannel[PinMap_PWM[i].pwmChannelNumber] == NoPin  //channel unused
+               || UsedHardwarePWMChannel[PinMap_PWM[i].pwmChannelNumber])       //or this pin is already configured as PWM
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+
+bool ConfigurePinForHWPWM(Pin pin, bool outputHigh) noexcept
+{
+    if(pin == NoPin || pin > MaxPinNumber) return false;
+
+    //Check for HW Pin
+    for(uint8_t i=0; i<size(PinMap_PWM); i++)
+    {
+        if(PinMap_PWM[i].pinNumber == pin)
+        {
+            if(UsedHardwarePWMChannel[PinMap_PWM[i].pwmChannelNumber] == pin)
+            {
+                return true; //pin already configured
+            }
+            //some PWM pins share the same pwm channel, so check another pin on same channel is not in use
+            if(UsedHardwarePWMChannel[PinMap_PWM[i].pwmChannelNumber] == NoPin)
+            {
+                UsedHardwarePWMChannel[PinMap_PWM[i].pwmChannelNumber] = pin; //Pin will use HW PWM
+                return true;
+            }
+        }
+    }
+    return false; //Pin unable to do HW PWM
+}
 
 
 bool IsServoCapable(Pin pin)
 {
     const uint8_t port = (pin >> 5);
-    const uint32_t portPinPosition = 1 << (pin & 0x1f);
-    uint8_t count = 0;
-
     if(pin > MaxPinNumber || port > 4) return false;
     
     //First see if the pin can use the HWPWM
     if(HardwarePWMFrequency == 50 && CanDoHWPWM(pin)) return true; //HWPWM configured at servo freq and is PWM capable
-    
-    //Check if there is a free slot on the Timer
-    
-    if( (pinsOnATimer[port] & portPinPosition) ) return true; //already setup as a Timer servo
-    for(uint8_t t=0; t<MaxTimerEntries; t++)
-    {
-        if(ServoTimerPWM.timerPins[t] == NoPin)
-        {
-            count++;
-        }
-    }
-    
-    return (count <= MaxTimerEntries);
+    // can we use software PWM?
+    return IsPwmCapable(pin);
 }
 
 void ReleaseServoPin(Pin pin)
-{
-    const uint8_t port = (pin >> 5);
-    const uint32_t portPinPosition = 1 << (pin & 0x1f);
-
-    
+{    
     //First check if pin was running on HWPWM
     if(ReleaseHWPWMPin(pin)) return; //Servo was running on HWPWM and was released
-
-
-    if( !(pinsOnATimer[port] & portPinPosition) ) return; //pin not configured as Timer Servo
-    //Send one more AnalogWriteServo with value 0 to turn off the match interrupt for that slot
-    AnalogWriteServo(0.0, ServoTimerPWM.frequency, pin);
-    
-    //find the pin (this pin has already been checked if it's on a timer)
-    for(size_t j=0; j<MaxTimerEntries; j++)
-    {
-        if(ServoTimerPWM.timerPins[j] == pin)
-        {
-            ServoTimerPWM.timerPins[j] = NoPin;
-            return;
-        }
-    }
+    // Must be software PWM
+    ReleasePWMPin(pin);
 }
 
 
 bool ConfigurePinForServo(Pin pin, bool outputHigh)
 {
     const uint8_t port = (pin >> 5);
-    const uint32_t portPinPosition = 1 << (pin & 0x1f);
     
     if (pin == NoPin || pin > MaxPinNumber || port > 4) return false;
     
@@ -90,237 +231,23 @@ bool ConfigurePinForServo(Pin pin, bool outputHigh)
     {
         return true; //Pin was configured to use HWPWM
     }
-
-    
-    //Next try Servo PWM on Timer
-    
-    if( (pinsOnATimer[port] & portPinPosition) ) return true; // This pin is already configured to be a Timer Servo
-    //get next free Slot
-    for(uint8_t t=0; t<MaxTimerEntries; t++)
-    {
-        if(ServoTimerPWM.timerPins[t] == NoPin)
-        {
-            //Timer has slot free, add pin to the timerPins array
-            ServoTimerPWM.timerPins[t] = pin;
-            
-            //Update the  bitmask to tell analogWrite that pin is now ServoPWM capable
-            pinsOnATimer[port] |= 1 << (pin & 0x1f);
-            return true;
-        }
-    }
-    
-    return false;
+    return ConfigurePinForPWM(pin, outputHigh);
 }
-
-
-//Initialse a timer
-static inline void initServoTimer()
-{
-    Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_TIMER2); //enable power and clocking
-
-    NVIC_EnableIRQ(TIMER2_IRQn);
-
-    ServoTimerPWM.timer->PR   =  getPrescalarForUs(PCLK_TIMER2); // Prescalar for 1us... every 1us TC is incremented
-    ServoTimerPWM.timer->MR[0] = 1000000/ServoTimerPWM.frequency; //The PWM Period in us
-    ServoTimerPWM.timer->TC  = 0x00;  // Reset the Timer Count to 0
-    ServoTimerPWM.timer->MCR = ((1<<SBIT_MR0I) | (1<<SBIT_MR0R));     // Int on MR0 match and Reset Timer on MR0 match
-    ServoTimerPWM.timer->TCR  = (1 <<SBIT_CNTEN); //Start Timer
-
-    servoTimerInitialised = true;
-}
-
 
 bool AnalogWriteServo(float ulValue, uint16_t freq, Pin pin)
 pre(0.0 <= ulValue; ulValue <= 1.0)
 {
-    uint8_t slot = 0;
-    const uint8_t port = (pin >> 5);
-    const uint32_t portPinPosition = 1 << (pin & 0x1f);
 
-    if( !(pinsOnATimer[port] & portPinPosition) )
+    //Is the pin configured as HW PWM
+    const PinDescription& pinDesc = g_APinDescription[pin];
+    const uint32_t attr = pinDesc.ulPinAttribute;
+    if ((attr & PIN_ATTR_PWM) != 0)
     {
-        return false; // This pin is not configured to be a TimerServo
-    }
-
-    
-    //find the pin (this pin has already been checked if it's on a timer)
-    for(size_t j=0; j<MaxTimerEntries; j++)
-    {
-        if(ServoTimerPWM.timerPins[j] == pin)
+        if (AnalogWriteHWPWM(pinDesc, ulValue, freq, pin))
         {
-            slot = (1 << j); //Timer slot bitmask. TimerPWM_Slot1 -> TimerPWM_Slot3
-            break;
+            return true;
         }
     }
-    
-    if(slot == 0) return false; // failed to find slot
-
-    //once timers are turned on, we dont turn off again. We only turn them on when first requested.
-    if( !servoTimerInitialised )
-    {
-        initServoTimer();
-    }
-    
-    uint32_t onTime = 0; //default to off
-    onTime = (uint32_t)((float)(1000000/ServoTimerPWM.frequency) * ulValue); //if the requested freq was not 0, but we use the fixed TimerFreq
-    
-    if(onTime >= ServoTimerPWM.timer->MR[0])
-    {
-        onTime = ServoTimerPWM.timer->MR[0]+1; // set above MR0 (prevents triggering an int and briefly turning off before reset)
-    }
-        
-
-    switch(slot)
-    {
-        case TimerPWM_Slot1:
-            if((servoOutputUsed & TimerPWM_Slot1) && ServoTimerPWM.timer->MR[1] == onTime)
-            {
-                //already running
-            }
-            else
-            {
-                ServoTimerPWM.timer->MR[1] = onTime; //The LOW time in us
-                if(onTime == 0)
-                {
-                    ServoTimerPWM.timer->MCR &= ~(1<<SBIT_MR1I);//  No Int on MR1 Match
-                }
-                else
-                {
-                    ServoTimerPWM.timer->MCR |= (1<<SBIT_MR1I);//  Int on MR1 Match
-                }
-                servoOutputUsed |= TimerPWM_Slot1;
-            }
-            break;
-            
-        case TimerPWM_Slot2:
-            if((servoOutputUsed & TimerPWM_Slot2) && ServoTimerPWM.timer->MR[2] == onTime)
-            {
-                //already running
-            }
-            else
-            {
-                ServoTimerPWM.timer->MR[2] = onTime; //The LOW time in us
-                if(onTime == 0)
-                {
-                    ServoTimerPWM.timer->MCR &= ~(1<<SBIT_MR2I);//  No Int on MR2 Match
-                }
-                else
-                {
-                    ServoTimerPWM.timer->MCR |= (1<<SBIT_MR2I);     //  Int on MR2 Match
-                }
-                servoOutputUsed |= TimerPWM_Slot2;
-            }
-            break;
-
-        case TimerPWM_Slot3:
-            if((servoOutputUsed & TimerPWM_Slot3) && ServoTimerPWM.timer->MR[3] == onTime)
-            {
-                //already running
-            }
-            else
-            {
-                ServoTimerPWM.timer->MR[3] = onTime; //The LOW time in us
-                if(onTime == 0)
-                {
-                    ServoTimerPWM.timer->MCR &= ~(1<<SBIT_MR3I);//  No Int on MR3 Match
-                }
-                else
-                {
-                    ServoTimerPWM.timer->MCR |= (1<<SBIT_MR3I);     //  Int on MR3 Match
-                }
-                servoOutputUsed |= TimerPWM_Slot3;
-
-            }
-            break;
-    }
-
-    return true;
+  
+    return AnalogWriteSoftwarePWM(ulValue, freq, pin);
 }
-
-
-
-static inline void servoFunctionResetPeriod()
-{
-    if( servoOutputUsed == 0 ) return; // nothing to do
-
-    
-    //Determine which pins need to be set High for the start of the PWM Period
-    if( servoOutputUsed & TimerPWM_Slot1 ) // if output pin is enabled
-    {
-        if(ServoTimerPWM.timer->MR[1] > 0){
-            pinMode(ServoTimerPWM.timerPins[0], OUTPUT_HIGH ); //go HIGH if we have a OnTime Set
-        } else {
-            pinMode(ServoTimerPWM.timerPins[0], OUTPUT_LOW ); //else keep next cycle off
-        }
-    }
-    
-    if( servoOutputUsed & TimerPWM_Slot2 ) // if output pin is enabled
-    {
-        if(ServoTimerPWM.timer->MR[2] > 0){
-            pinMode(ServoTimerPWM.timerPins[1], OUTPUT_HIGH );
-        } else {
-            pinMode(ServoTimerPWM.timerPins[1], OUTPUT_LOW );
-        }
-    }
-    
-    if( servoOutputUsed & TimerPWM_Slot3 ) // if output pin is enabled
-    {
-        if(ServoTimerPWM.timer->MR[3] > 0){
-
-            pinMode(ServoTimerPWM.timerPins[2], OUTPUT_HIGH );
-        } else {
-            pinMode(ServoTimerPWM.timerPins[2], OUTPUT_LOW );
-        }
-    }
-
-}
-
-
-extern "C" void TIMER2_IRQHandler(void)
-{
-    LPC_TIMER_T *timer = ServoTimerPWM.timer;
-    uint32_t regval = timer->IR;
-    
-    timer->TCR  = 0; //Stop the timer
-    
-    //When this int is called, we check if MR1-3 triggered int, if so, the output needs to go LOW
-    
-    if (regval & (1 << SBIT_MRI1_IFM)) //Interrupt flag for match channel 1.
-    {
-        timer->IR |= (1<<SBIT_MRI1_IFM); //clear interrupt on MR1 (setting bit will clear int)
-        if(servoOutputUsed & TimerPWM_Slot1)
-        {
-            pinMode(ServoTimerPWM.timerPins[0], OUTPUT_LOW );
-        }
-    }
-    
-    if (regval & (1 << SBIT_MRI2_IFM)) //Interrupt flag for match channel 2.
-    {
-        timer->IR |= (1<<SBIT_MRI2_IFM); //clear interrupt on MR2 (setting bit will clear int)
-        if(servoOutputUsed & TimerPWM_Slot2)
-        {
-            pinMode(ServoTimerPWM.timerPins[1], OUTPUT_LOW );
-        }
-    }
-    
-    if (regval & (1 << SBIT_MRI3_IFM)) //Interrupt flag for match channel 3.
-    {
-        timer->IR |= (1<<SBIT_MRI3_IFM); //clear interrupt on MR3 (setting bit will clear int)
-        if(servoOutputUsed & TimerPWM_Slot3)
-        {
-            pinMode(ServoTimerPWM.timerPins[2], OUTPUT_LOW );
-        }
-    }
-    
-    //MR0 is the Period, we need to reset all the channels to the start of the period
-    if (regval & (1 << SBIT_MRI0_IFM)) //Interrupt flag for match channel 0 (
-    {
-        // TC will be reset... set all connected pins high for start of the cycle
-        timer->IR |= (1<<SBIT_MRI0_IFM); //clear interrupt on MR0 (setting bit will clear int)
-        servoFunctionResetPeriod(); //start the cycle HIGH, MR1-3 will set the "on" times for each channel.
-    }
-    timer->TCR  = (1 <<SBIT_CNTEN); //start the timer again
-}
-
-
-
