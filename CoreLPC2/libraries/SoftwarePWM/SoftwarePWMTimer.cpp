@@ -290,7 +290,7 @@ void SoftwarePWMTimer::Diagnostics(MessageType mtype)
         if (States[i].enabled)
             reprap.GetPlatform().MessageF(mtype, "state %d next %d on %u(%d) off %u(%d) pin %d.%d\n", i, (int)(States[i].nextEvent - now), (unsigned)States[i].onOffTimes[States[i].onOffBuffer][1], States[i].onOffVals[States[i].onOffBuffer][1], (unsigned)States[i].onOffTimes[States[i].onOffBuffer][0], States[i].onOffVals[States[i].onOffBuffer][0], (States[i].pin >> 5), (States[i].pin & 0x1f) );
     }
-    reprap.GetPlatform().MessageF(mtype, "Delta %d Start %d End %d\n", delta, startActive, endActive);
+    reprap.GetPlatform().MessageF(mtype, "Delta %d Start %d End %d\n", static_cast<int>(delta), static_cast<int>(startActive), static_cast<int>(endActive));
     LPC_RITIMER->CTRL |= RIT_CTRL_TEN;
 }
 #endif
