@@ -112,7 +112,20 @@ enum SSPChannel : uint8_t
 
 
 #include "variant.h"
+#define SAM4E	0
+#define SAM4S	0
+#define SAM3XA	0
+#define SAME70	0
+#define SAME5x  0
+#define SAMC21  0
 
+typedef uint8_t DmaChannel;			///< A type that represents a DMA channel number
+typedef uint8_t DmaPriority;		///< A type that represents a DMA priority
+//typedef uint8_t Pin;				///< A type that represents an I/O pin on the microcontroller
+typedef uint16_t PwmFrequency;		///< A type that represents a PWM frequency. 0 sometimes means "default".
+typedef uint32_t NvicPriority;		///< A type that represents an interrupt priority
+typedef uint8_t ExintNumber;		///< A type that represents an EXINT number
+typedef uint8_t EventNumber;		///< A type that represents an event number
 
 #ifndef __STATIC_INLINE
  #define __STATIC_INLINE  static inline
