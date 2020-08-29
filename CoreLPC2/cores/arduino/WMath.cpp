@@ -33,7 +33,7 @@ int32_t random(int32_t howbig) noexcept
 
 	if (!isInitialised)
 	{
-		srand(micros());
+		srand(SysTick->VAL);
 		isInitialised = true;
 	}
 
