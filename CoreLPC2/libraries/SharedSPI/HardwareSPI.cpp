@@ -61,6 +61,10 @@ static inline void flushRxFifo(LPC_SSP_T* sspDevice) noexcept
     }
 }
 
+void HardwareSPI::flushRx() noexcept
+{
+    flushRxFifo(ssp);
+}
 
 // Disable the device and flush any data from the fifos
 void HardwareSPI::disable() noexcept
@@ -280,6 +284,13 @@ void HardwareSPI::startTransfer(const uint8_t *tx_data, uint8_t *rx_data, size_t
     }
     callback = ioComplete;
     Chip_SSP_DMA_Enable(ssp);
+}
+
+void HardwareSPI::stopTransfer() noexcept
+{
+    Chip_SSP_DMA_Disable(ssp);
+    flushRxFifo(ssp);
+    flushTxFifo(ssp);
 }
 
 spi_status_t HardwareSPI::transceivePacket(const uint8_t *tx_data, uint8_t *rx_data, size_t len) noexcept
