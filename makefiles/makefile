@@ -11,15 +11,15 @@ BUILD_DIR ?= ./build
 FREERTOS_DIR ?= ./FreeRTOS
 REPRAPFIRMWARE_DIR ?= ./RepRapFirmware
 RRFLIBRARIES_DIR ?= ./RRFLibraries
-CORELPC_DIR ?= ./CoreLPC2
+CORELPC_DIR ?= ./CoreLPC
 
 BUILD ?= Debug
 #BUILD ?= Release
 
 #Enable only one
 #NETWORKING ?= true
-#ESP8266WIFI ?= true
-SBC ?= true
+ESP8266WIFI ?= true
+#SBC ?= true
 
 TMC22XX ?= true
 
@@ -46,10 +46,10 @@ MKDIR = mkdir -p
 uniq = $(if $1,$(firstword $1) $(call uniq,$(filter-out $(firstword $1),$1)))
 
 
-include LPCCore.mk
-include FreeRTOS.mk
-include RRFLibraries.mk
-include RepRapFirmware.mk
+include $(MAKEDIR)/LPCCore.mk
+include $(MAKEDIR)/FreeRTOS.mk
+include $(MAKEDIR)/RRFLibraries.mk
+include $(MAKEDIR)/RepRapFirmware.mk
 
 ifeq ($(BUILD),Debug)
 	#DEBUG_FLAGS = -Og -g -DLPC_DEBUG
@@ -160,7 +160,7 @@ $(BUILD_DIR)/$(OUTPUT_NAME).elf: $(BUILD_DIR)/libLPCCore.a $(BUILD_DIR)/libRRFLi
 	$(V)$(LD) -L$(BUILD_DIR)/ -L$(CORE)/variants/LPC/linker_scripts/gcc/ --specs=nosys.specs -Os -Wl,--warn-section-align -Wl,--fatal-warnings -march=armv7-m -mcpu=cortex-m3 -T$(LINKER_SCRIPT) -Wl,-Map,$(BUILD_DIR)/$(OUTPUT_NAME).map -o $(BUILD_DIR)/$(OUTPUT_NAME).elf  -mthumb -Wl,--cref -Wl,--check-sections -Wl,--gc-sections -Wl,--entry=Reset_Handler -Wl,--unresolved-symbols=report-all -Wl,--warn-common -Wl,--warn-section-align -Wl,--warn-unresolved-symbols -Wl,--start-group  $(BUILD_DIR)/$(CORE)/cores/arduino/syscalls.o $(RRFLIBC_OBJS) -lLPCCore $(RRF_OBJS) -lsupc++ -lRRFLibraries  -Wl,--end-group -lm 
 	$(V)$(OBJCOPY) --strip-unneeded -O binary $(BUILD_DIR)/$(OUTPUT_NAME).elf $(BUILD_DIR)/$(OUTPUT_NAME).bin
 	$(V)$(SIZE) $(BUILD_DIR)/$(OUTPUT_NAME).elf
-	-@./staticMemStats.sh $(BUILD_DIR)/$(OUTPUT_NAME).elf
+	-@$(MAKEDIR)/staticMemStats.sh $(BUILD_DIR)/$(OUTPUT_NAME).elf
 	
 $(BUILD_DIR)/%.o: %.c
 	@echo "[$<]"
