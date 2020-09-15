@@ -14,12 +14,8 @@ RRFLIBRARIES_DIR ?= ./RRFLibraries
 CORELPC_DIR ?= ./CoreLPC
 
 BUILD ?= Debug
-#BUILD ?= Release
 
-#Enable only one
-#NETWORKING ?= true
-ESP8266WIFI ?= true
-#SBC ?= true
+NETWORK ?= ESP8266WIFI
 
 TMC22XX ?= true
 
@@ -46,10 +42,10 @@ MKDIR = mkdir -p
 uniq = $(if $1,$(firstword $1) $(call uniq,$(filter-out $(firstword $1),$1)))
 
 
-include $(MAKEDIR)/LPCCore.mk
-include $(MAKEDIR)/FreeRTOS.mk
-include $(MAKEDIR)/RRFLibraries.mk
-include $(MAKEDIR)/RepRapFirmware.mk
+include $(MAKE_DIR)/Core.mk
+include $(MAKE_DIR)/FreeRTOS.mk
+include $(MAKE_DIR)/RRFLibraries.mk
+include $(MAKE_DIR)/RepRapFirmware.mk
 
 ifeq ($(BUILD),Debug)
 	#DEBUG_FLAGS = -Og -g -DLPC_DEBUG
@@ -64,10 +60,10 @@ endif
 #select correct linker script
 ifeq ($(MBED), true)
 	#No bootloader for MBED
-	LINKER_SCRIPT_BASE = $(CORE)/variants/LPC/linker_scripts/gcc/LPC17xx_direct
+	LINKER_SCRIPT_BASE = $(CORE_DIR)/variants/LPC/linker_scripts/gcc/LPC17xx_direct
 else 
 	#Linker script to avoid Smoothieware Bootloader
- 	LINKER_SCRIPT_BASE = $(CORE)/variants/LPC/linker_scripts/gcc/LPC17xx_smoothie
+ 	LINKER_SCRIPT_BASE = $(CORE_DIR)/variants/LPC/linker_scripts/gcc/LPC17xx_smoothie
 endif
 
 
@@ -99,13 +95,13 @@ FLAGS += -nostdlib -Wdouble-promotion -fsingle-precision-constant -fstack-usage
 FLAGS += $(DEBUG_FLAGS)
 FLAGS += -MMD -MP 
 
-ifeq ($(NETWORKING), true)
+ifeq ($(NETWORK), ETHERNET)
         $(info  - Networking: Ethernet)
         FLAGS += -DLPC_NETWORKING
-else ifeq ($(ESP8266WIFI), true)
+else ifeq ($(NETWORK), ESP8266WIFI)
         $(info  - Networking: ESP8266 WIFI) 
         FLAGS += -DESP8266WIFI
-else ifeq ($(SBC), true)
+else ifeq ($(NETWORK), SBC)
         $(info  - SBC Interface Enabled)
         FLAGS += -DLPC_SBC
 else
@@ -157,10 +153,10 @@ $(BUILD_DIR)/libRRFLibraries.a: $(RRFLIBRARIES_OBJS)
 $(BUILD_DIR)/$(OUTPUT_NAME).elf: $(BUILD_DIR)/libLPCCore.a $(BUILD_DIR)/libRRFLibraries.a $(RRFLIBC_OBJS) $(RRF_OBJS)
 	@echo "\nCreating $(OUTPUT_NAME).bin"
 	$(V)$(MKDIR) $(dir $@)
-	$(V)$(LD) -L$(BUILD_DIR)/ -L$(CORE)/variants/LPC/linker_scripts/gcc/ --specs=nosys.specs -Os -Wl,--warn-section-align -Wl,--fatal-warnings -march=armv7-m -mcpu=cortex-m3 -T$(LINKER_SCRIPT) -Wl,-Map,$(BUILD_DIR)/$(OUTPUT_NAME).map -o $(BUILD_DIR)/$(OUTPUT_NAME).elf  -mthumb -Wl,--cref -Wl,--check-sections -Wl,--gc-sections -Wl,--entry=Reset_Handler -Wl,--unresolved-symbols=report-all -Wl,--warn-common -Wl,--warn-section-align -Wl,--warn-unresolved-symbols -Wl,--start-group  $(BUILD_DIR)/$(CORE)/cores/arduino/syscalls.o $(RRFLIBC_OBJS) -lLPCCore $(RRF_OBJS) -lsupc++ -lRRFLibraries  -Wl,--end-group -lm 
+	$(V)$(LD) -L$(BUILD_DIR)/ -L$(CORE_DIR)/variants/LPC/linker_scripts/gcc/ --specs=nosys.specs -Os -Wl,--warn-section-align -Wl,--fatal-warnings -march=armv7-m -mcpu=cortex-m3 -T$(LINKER_SCRIPT) -Wl,-Map,$(BUILD_DIR)/$(OUTPUT_NAME).map -o $(BUILD_DIR)/$(OUTPUT_NAME).elf  -mthumb -Wl,--cref -Wl,--check-sections -Wl,--gc-sections -Wl,--entry=Reset_Handler -Wl,--unresolved-symbols=report-all -Wl,--warn-common -Wl,--warn-section-align -Wl,--warn-unresolved-symbols -Wl,--start-group  $(BUILD_DIR)/$(CORE_DIR)/cores/arduino/syscalls.o $(RRFLIBC_OBJS) -lLPCCore $(RRF_OBJS) -lsupc++ -lRRFLibraries  -Wl,--end-group -lm 
 	$(V)$(OBJCOPY) --strip-unneeded -O binary $(BUILD_DIR)/$(OUTPUT_NAME).elf $(BUILD_DIR)/$(OUTPUT_NAME).bin
 	$(V)$(SIZE) $(BUILD_DIR)/$(OUTPUT_NAME).elf
-	-@$(MAKEDIR)/staticMemStats.sh $(BUILD_DIR)/$(OUTPUT_NAME).elf
+	-@$(MAKE_DIR)/staticMemStats.sh $(BUILD_DIR)/$(OUTPUT_NAME).elf
 	
 $(BUILD_DIR)/%.o: %.c
 	@echo "[$<]"

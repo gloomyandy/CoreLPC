@@ -4,7 +4,7 @@ RRF_SRC_BASE  = $(REPRAPFIRMWARE_DIR)/src
 
 RRF_SRC_DIRS = FilamentMonitors GCodes GCodes/GCodeBuffer Heating 
 RRF_SRC_DIRS += Movement Movement/BedProbing Movement/Kinematics 
-RRF_SRC_DIRS += Storage Libraries/sha1 Hardware/SharedSpi
+RRF_SRC_DIRS += Storage Libraries/sha1 Hardware/SharedSpi Comms
 RRF_SRC_DIRS += Heating/Sensors Fans ObjectModel Endstops Hardware Tools
 RRF_SRC_DIRS += Display Display/ST7920 GPIO
 
@@ -12,11 +12,11 @@ RRF_SRC_DIRS += Display Display/ST7920 GPIO
 RRF_SRC_DIRS += LPC LPC/MCP4461 LPC/FatFS
 
 #networking support?
-ifeq ($(NETWORKING), true)
+ifeq ($(NETWORK), ETHERNET)
 	RRF_SRC_DIRS += Networking LPC/Networking LPC/Networking/RTOSPlusTCPEthernet
-else ifeq ($(ESP8266WIFI), true) 
+else ifeq ($(NETWORK), ESP8266WIFI) 
 	RRF_SRC_DIRS += Networking Networking/ESP8266WiFi LPC/Networking/ESP8266WiFi
-else ifeq ($(SBC), true)
+else ifeq ($(NETWORK), SBC)
 	RRF_SRC_DIRS += Linux
 	RRF_SRC_DIRS += LPC/NoNetwork
 else
@@ -40,7 +40,7 @@ RRF_INCLUDES = $(addprefix -I, $(RRF_SRC))
 RRF_INCLUDES += -I$(RRF_SRC_BASE)/Libraries/
 
 #If building ESP8266 WIFI we only need to add the include from DuetWifiSocketServer as it has a file needed to compile RRF 
-ifeq ($(ESP8266WIFI), true)
+ifeq ($(NETWORK), ESP8266WIFI)
 	RRF_INCLUDES += -IDuetWiFiSocketServer/src/include
 endif
 
