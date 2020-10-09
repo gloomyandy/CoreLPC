@@ -58,7 +58,7 @@ extern uint32_t SystemCoreClock;
 
 #define configSUPPORT_STATIC_ALLOCATION			1
 #if __LPC17xx__
-    #define configSUPPORT_DYNAMIC_ALLOCATION        1
+    #define configSUPPORT_DYNAMIC_ALLOCATION        0
 #else
     #define configSUPPORT_DYNAMIC_ALLOCATION        0
 #endif
@@ -78,7 +78,7 @@ extern uint32_t SystemCoreClock;
 //#define configTOTAL_HEAP_SIZE                    ( ( size_t ) ( 1024) )
 
 #define configMAX_TASK_NAME_LEN					( 10 )
-#define configUSE_TRACE_FACILITY				1
+#define configUSE_TRACE_FACILITY				0
 #define configUSE_16_BIT_TICKS					0
 #define configIDLE_SHOULD_YIELD					1
 #define configUSE_MUTEXES						1

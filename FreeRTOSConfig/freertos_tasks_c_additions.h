@@ -34,9 +34,9 @@
 
 #include <stdint.h>
 
-#if (configUSE_TRACE_FACILITY == 0)
-#error "configUSE_TRACE_FACILITY must be enabled"
-#endif
+//#if (configUSE_TRACE_FACILITY == 0)
+//#error "configUSE_TRACE_FACILITY must be enabled"
+//#endif
 
 #define FREERTOS_DEBUG_CONFIG_MAJOR_VERSION 1
 #define FREERTOS_DEBUG_CONFIG_MINOR_VERSION 1
@@ -79,6 +79,114 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+//SD Added to get top of task stacks
+
+#if (configRECORD_STACK_HIGH_ADDRESS != 1)
+# error configRECORD_STACK_HIGH_ADDRESS must be set to 1
+#endif
+volatile StackType_t *CheckSPCurrentTaskStack(const uint32_t *stackPointer)
+{
+    if(pxCurrentTCB == NULL || stackPointer == NULL) return NULL;
+    if(stackPointer < pxCurrentTCB->pxStack || stackPointer > pxCurrentTCB->pxEndOfStack) return NULL; // stackPointer not in task stack
+    return pxCurrentTCB->pxEndOfStack;
+}
+
+// GA Moved and modified to allow getting stack usage with configUSE_TRACE_FACILITY disabled
+#if (configUSE_TRACE_FACILITY == 0)
+	void vTaskGetInfo( TaskHandle_t xTask, TaskStatus_t *pxTaskStatus, BaseType_t xGetFreeStackSpace, eTaskState eState )
+	{
+	TCB_t *pxTCB;
+
+		/* xTask is NULL then get the state of the calling task. */
+		pxTCB = prvGetTCBFromHandle( xTask );
+
+		pxTaskStatus->xHandle = ( TaskHandle_t ) pxTCB;
+		pxTaskStatus->pcTaskName = ( const char * ) &( pxTCB->pcTaskName [ 0 ] );
+		pxTaskStatus->uxCurrentPriority = pxTCB->uxPriority;
+		pxTaskStatus->pxStackBase = pxTCB->pxStack;
+        // not available without configUSE_TRACE_FACILITY
+		//pxTaskStatus->xTaskNumber = pxTCB->uxTCBNumber;
+
+		#if ( configUSE_MUTEXES == 1 )
+		{
+			pxTaskStatus->uxBasePriority = pxTCB->uxBasePriority;
+		}
+		#else
+		{
+			pxTaskStatus->uxBasePriority = 0;
+		}
+		#endif
+
+		#if ( configGENERATE_RUN_TIME_STATS == 1 )
+		{
+			pxTaskStatus->ulRunTimeCounter = pxTCB->ulRunTimeCounter;
+		}
+		#else
+		{
+			pxTaskStatus->ulRunTimeCounter = 0;
+		}
+		#endif
+
+		/* Obtaining the task state is a little fiddly, so is only done if the
+		value of eState passed into this function is eInvalid - otherwise the
+		state is just set to whatever is passed in. */
+		if( eState != eInvalid )
+		{
+			if( pxTCB == pxCurrentTCB )
+			{
+				pxTaskStatus->eCurrentState = eRunning;
+			}
+			else
+			{
+				pxTaskStatus->eCurrentState = eState;
+
+				#if ( INCLUDE_vTaskSuspend == 1 )
+				{
+					/* If the task is in the suspended list then there is a
+					chance it is actually just blocked indefinitely - so really
+					it should be reported as being in the Blocked state. */
+					if( eState == eSuspended )
+					{
+						vTaskSuspendAll();
+						{
+							if( listLIST_ITEM_CONTAINER( &( pxTCB->xEventListItem ) ) != NULL )
+							{
+								pxTaskStatus->eCurrentState = eBlocked;
+							}
+						}
+						( void ) xTaskResumeAll();
+					}
+				}
+				#endif /* INCLUDE_vTaskSuspend */
+			}
+		}
+		else
+		{
+			pxTaskStatus->eCurrentState = eTaskGetState( pxTCB );
+		}
+
+		/* Obtaining the stack space takes some time, so the xGetFreeStackSpace
+		parameter is provided to allow it to be skipped. */
+		if( xGetFreeStackSpace != pdFALSE )
+		{
+			#if ( portSTACK_GROWTH > 0 )
+			{
+				pxTaskStatus->usStackHighWaterMark = prvTaskCheckFreeStackSpace( ( uint8_t * ) pxTCB->pxEndOfStack );
+			}
+			#else
+			{
+				pxTaskStatus->usStackHighWaterMark = prvTaskCheckFreeStackSpace( ( uint8_t * ) pxTCB->pxStack );
+			}
+			#endif
+		}
+		else
+		{
+			pxTaskStatus->usStackHighWaterMark = 0;
+		}
+	}
+#endif
+
+#if (configUSE_TRACE_FACILITY != 0)
 
 extern const uint8_t FreeRTOSDebugConfig[];
 
@@ -117,19 +225,7 @@ const uint8_t FreeRTOSDebugConfig[] =
     configMAX_PRIORITIES,
     0 /* pad to 32-bit boundary */
 };
-
-//SD Added to get top of task stacks
-
-#if (configRECORD_STACK_HIGH_ADDRESS != 1)
-# error configRECORD_STACK_HIGH_ADDRESS must be set to 1
 #endif
-volatile StackType_t *CheckSPCurrentTaskStack(const uint32_t *stackPointer)
-{
-    if(pxCurrentTCB == NULL || stackPointer == NULL) return NULL;
-    if(stackPointer < pxCurrentTCB->pxStack || stackPointer > pxCurrentTCB->pxEndOfStack) return NULL; // stackPointer not in task stack
-    return pxCurrentTCB->pxEndOfStack;
-}
-
 
 #ifdef __cplusplus
 }
