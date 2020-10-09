@@ -57,7 +57,7 @@ static inline void flushRxFifo(LPC_SSP_T* sspDevice) noexcept
 {
     while(sspDevice->SR & SR_RNE)
     {
-        (void)LPC_SSP0->DR;
+        (void)sspDevice->DR;
     }
 }
 
