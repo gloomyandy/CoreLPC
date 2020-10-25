@@ -10,7 +10,7 @@ extern "C" void AppMain();
 
 //How much memory to reserve when allocating the heap space.
 //Stack size + 256 bytes pagesize and <=128 bytes for SoftwareReset data + any other code that uses malloc
-constexpr uint32_t stackSize = 300;
+constexpr uint32_t stackSize = 400;
 constexpr uint32_t reserveMemory = stackSize + (256+128);
 
 __attribute__ ((used)) uint8_t *ucHeap;
