@@ -19,6 +19,8 @@ NETWORK ?= ESP8266WIFI
 
 TMC22XX ?= true
 
+STARTUP_DELAY ?= -DSTARTUP_DELAY=10000
+
 #Comment out to show compilation commands (verbose)
 V=@
 
@@ -49,7 +51,7 @@ include $(MAKE_DIR)/RepRapFirmware.mk
 
 ifeq ($(BUILD),Debug)
 	#DEBUG_FLAGS = -Og -g -DLPC_DEBUG
-	DEBUG_FLAGS = -Os -g -DLPC_DEBUG
+	DEBUG_FLAGS = -Os -g -DLPC_DEBUG $(STARTUP_DELAY)
         $(info - Build: Debug) 
 else
 	DEBUG_FLAGS = -Os
