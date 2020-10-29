@@ -9,7 +9,7 @@ RRF_SRC_DIRS += Heating/Sensors Fans ObjectModel Endstops Hardware Tools
 RRF_SRC_DIRS += Display Display/ST7920 GPIO
 
 #LPC RRF Addons
-RRF_SRC_DIRS += targets/LPC targets/common targets/LPC/MCP4461 targets/LPC/FatFS targets/common/FatFS
+RRF_SRC_DIRS += targets/LPC targets/common targets/LPC/MCP4461 targets/LPC/FatFS targets/common/FatFS targets/common/Fans
 
 #networking support?
 ifeq ($(NETWORK), ETHERNET)
