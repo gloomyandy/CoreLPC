@@ -38,6 +38,8 @@
 extern "C" {
 #endif
 
+extern char *heapTop;
+extern const char *heapLimit;
 extern caddr_t _sbrk( int incr ) ;
 
 extern int link( char *cOld, char *cNew ) ;

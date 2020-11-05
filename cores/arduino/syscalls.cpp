@@ -17,7 +17,7 @@
 */
 
 /**
-  * \file syscalls.c
+  * \file syscalls.cpp
   *
   * Implementation of newlib syscall.
   *
@@ -29,7 +29,7 @@
 
 
 #include "syscalls.h"
-
+#include "Core.h"
 #include <stdio.h>
 #include <stdarg.h>
 #if defined (  __GNUC__  ) /* GCC CS3 */
@@ -45,7 +45,7 @@
 #else
 #  define UNUSED(x) x ## _UNUSED
 #endif
-
+#include <errno.h>
 /*----------------------------------------------------------------------------
  *        Exported variables
  *----------------------------------------------------------------------------*/
@@ -53,77 +53,83 @@
 #undef errno
 int errno = 0;
 extern int  _end ;
-
+extern char _estack;
 /*----------------------------------------------------------------------------
  *        Exported functions
  *----------------------------------------------------------------------------*/
-extern void _exit( int status ) ;
-extern void _kill( int pid, int sig ) ;
-extern int _getpid ( void ) ;
 
-extern caddr_t _sbrk ( int incr )
+void OutOfMemoryHandler() noexcept;
+
+char *heapTop = (char *)&_end;
+const char *heapLimit = &_estack - SystemStackSize;
+
+/**
+ * \brief Replacement of C library of _sbrk
+ */
+extern "C" caddr_t _sbrk(ptrdiff_t incr) noexcept
 {
-    static unsigned char *heap = NULL ;
-    unsigned char *prev_heap ;
+	char *newHeap = heapTop + incr;
+	if (newHeap <= heapLimit)
+	{
+		void *prev_heap = heapTop;
+		heapTop = newHeap;
+		return (caddr_t) prev_heap;
+	}
 
-    if ( heap == NULL )
-    {
-        heap = (unsigned char *)&_end ;
-    }
-    prev_heap = heap;
+	OutOfMemoryHandler();
 
-    heap += incr ;
-
-    return (caddr_t) prev_heap ;
+	// The out of memory handle usually terminates, but in case it doesn't, try to return failure. Unfortunately, this doesn't seem to work with newlib.
+	errno = ENOMEM;
+	return (caddr_t)(-1);
 }
 
-extern int link( UNUSED(char *cOld), UNUSED(char *cNew) )
+extern "C" int link( UNUSED(char *cOld), UNUSED(char *cNew) )
 {
     return -1 ;
 }
 
-extern int _close( UNUSED(int file) )
+extern "C" int _close( UNUSED(int file) )
 {
     return -1 ;
 }
 
-extern int _fstat( UNUSED(int file), struct stat *st )
+extern "C" int _fstat( UNUSED(int file), struct stat *st )
 {
     st->st_mode = S_IFCHR ;
     return 0 ;
 }
 
-extern int _isatty( UNUSED(int file) )
+extern "C" int _isatty( UNUSED(int file) )
 {
     return 1 ;
 }
 
-extern int _lseek( UNUSED(int file), UNUSED(int ptr), UNUSED(int dir) )
+extern "C" int _lseek( UNUSED(int file), UNUSED(int ptr), UNUSED(int dir) )
 {
     return 0 ;
 }
 
-extern int _read(UNUSED(int file), UNUSED(char *ptr), UNUSED(int len) )
+extern "C" int _read(UNUSED(int file), UNUSED(char *ptr), UNUSED(int len) )
 {
     return 0 ;
 }
 
-extern int _write( UNUSED(int file), char *ptr, int len )
+extern "C" int _write( UNUSED(int file), char *ptr, int len )
 {
 	return len;
 }
 
-extern void _exit( int status )
+extern "C" void _exit( int status )
 {
 	for ( ; ; ) ;
 }
 
-extern void _kill( UNUSED(int pid), UNUSED(int sig) )
+extern "C" void _kill( UNUSED(int pid), UNUSED(int sig) )
 {
     return ;
 }
 
-extern int _getpid ( void )
+extern "C" int _getpid ( void )
 {
     return -1 ;
 }
