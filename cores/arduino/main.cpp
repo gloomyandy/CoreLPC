@@ -9,8 +9,8 @@ extern "C" void __libc_init_array(void);
 extern "C" void AppMain();
 
 //How much memory to reserve when allocating the heap space.
-//Stack size + 256 bytes pagesize and <=128 bytes for SoftwareReset data + any other code that uses malloc
-constexpr uint32_t reserveMemory = SystemStackSize + (256+128);
+//Stack size + 256 bytes pagesize for any other code that uses malloc
+constexpr uint32_t reserveMemory = SystemStackSize + (256);
 
 __attribute__ ((used)) uint8_t *ucHeap;
 

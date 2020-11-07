@@ -120,7 +120,7 @@ enum SSPChannel : uint8_t
 #define SAMC21  0
 
 // Space reserved for Handler stack in bytes
-#define SystemStackSize (400)
+#define SystemStackSize (512)
 
 typedef uint8_t DmaChannel;			///< A type that represents a DMA channel number
 typedef uint8_t DmaPriority;		///< A type that represents a DMA priority
