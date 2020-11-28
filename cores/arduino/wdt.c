@@ -16,8 +16,8 @@ extern "C" {
  -Selectable time period from (TWDCLK x 256 x 4) to (TWDCLK x 2^32 x 4) in multiples of TWDCLK x 4.
  */
 
-//Init the watchdog in seconds
-void wdt_init(uint32_t s_counter) noexcept
+//Init the watchdog in mS
+void WatchdogEnable(uint32_t s_counter) noexcept
 {
 
     //From Manual
@@ -29,7 +29,7 @@ void wdt_init(uint32_t s_counter) noexcept
     Chip_WWDT_SelClockSource(LPC_WWDT, WWDT_CLKSRC_WATCHDOG_PCLK); // Set CLK src to PCLK
 
     const uint32_t ticksPerSecond = Chip_Clock_GetPeripheralClockRate(SYSCTL_PCLK_WDT) / 4; //WDT has a fixed /4 prescaler
-    Chip_WWDT_SetTimeOut(LPC_WWDT, s_counter * ticksPerSecond);
+    Chip_WWDT_SetTimeOut(LPC_WWDT, s_counter * ticksPerSecond / 1000);
 
     /*Manual says: The WDTC register determines the time-out value. Every time a feed sequence occurs
      the WDTC content is reloaded in to the Watchdog timer. It’s a 32-bit register with 8 LSB
@@ -43,14 +43,9 @@ void wdt_init(uint32_t s_counter) noexcept
     NVIC_EnableIRQ(WDT_IRQn);
 }
 
-void wdt_restart(uint8_t wdt) noexcept //compat with RRF wdt not used, but maintain compat with RRF
+void WatchdogReset() noexcept
 {
     Chip_WWDT_Feed(LPC_WWDT);
-}
-
-void watchdogReset() noexcept
-{
-    wdt_restart(0);
 }
     
 #ifdef __cplusplus
