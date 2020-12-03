@@ -16,6 +16,8 @@ class ConfigurableUART : public Stream
 {
 
 public:
+    typedef void (*InterruptCallbackFn)(ConfigurableUART*) noexcept;
+
     ConfigurableUART() noexcept;
 
     bool Configure(Pin rx, Pin tx) noexcept;
@@ -41,9 +43,11 @@ public:
 
     void setInterruptPriority(uint32_t priority) noexcept;
     uint32_t getInterruptPriority() noexcept;
+    InterruptCallbackFn SetInterruptCallback(InterruptCallbackFn f) noexcept;
 
 private:
     HardwareSerial *serialPort;
+    InterruptCallbackFn interruptCallback;
 };
 
 #define UARTClass ConfigurableUART // compatibility with RRF
