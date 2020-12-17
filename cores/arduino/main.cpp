@@ -3,6 +3,7 @@
 
 #include "Core.h"
 #include <FreeRTOS.h>
+#include "syscalls.h"
 
 extern "C" void UrgentInit();
 extern "C" void __libc_init_array(void);
@@ -16,7 +17,6 @@ __attribute__ ((used)) uint8_t *ucHeap;
 
 
 // these are defined in the linker script
-extern "C" uint32_t _estack;
 extern uint8_t __AHB0_block_start;
 extern uint8_t __AHB0_dyn_start;
 extern uint8_t __AHB0_end;

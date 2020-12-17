@@ -52,8 +52,8 @@
 
 #undef errno
 int errno = 0;
-extern int  _end ;
-extern char _estack;
+const char * const sysStackLimit = &_estack - SystemStackSize;
+const char *heapLimit = (char*)&_estack - SystemStackSize;
 /*----------------------------------------------------------------------------
  *        Exported functions
  *----------------------------------------------------------------------------*/
@@ -61,7 +61,7 @@ extern char _estack;
 void OutOfMemoryHandler() noexcept;
 
 char *heapTop = (char *)&_end;
-const char *heapLimit = &_estack - SystemStackSize;
+
 
 /**
  * \brief Replacement of C library of _sbrk

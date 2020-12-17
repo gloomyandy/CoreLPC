@@ -45,6 +45,7 @@ static const Pin NoPin = P_NC; //which =0xff
 
 
 #ifdef __cplusplus
+extern const char * const sysStackLimit;
 
 // Pin Attributes to be OR-ed
 constexpr uint8_t PIN_ATTR_NONE = 0;
@@ -108,6 +109,26 @@ enum SSPChannel : uint8_t
 #include "ConfigurableUART.h"
 #include "SerialUSB.h"
 
+// Optimised version of memcpy for use when the source and destination are known to be 32-bit aligned and a whole number of 32-bit words is to be copied
+void memcpyu32(uint32_t *dst, const uint32_t *src, size_t numWords) noexcept;
+
+// memcpy for int32_t arrays
+inline void memcpyi32(int32_t *dst, const int32_t *src, size_t numWords) noexcept
+{
+	static_assert(sizeof(int32_t) == sizeof(uint32_t));
+	static_assert(alignof(int32_t) == alignof(uint32_t));
+	memcpyu32(reinterpret_cast<uint32_t*>(dst), reinterpret_cast<const uint32_t*>(src), numWords);
+}
+
+// memcpy for float arrays
+inline void memcpyf(float *dst, const float *src, size_t numFloats) noexcept
+{
+	static_assert(sizeof(float) == sizeof(uint32_t));
+	static_assert(alignof(float) == alignof(uint32_t));
+	memcpyu32(reinterpret_cast<uint32_t*>(dst), reinterpret_cast<const uint32_t*>(src), numFloats);
+}
+
+
 #endif // __cplusplus
 
 
@@ -119,8 +140,7 @@ enum SSPChannel : uint8_t
 #define SAME5x  0
 #define SAMC21  0
 
-// Space reserved for Handler stack in bytes
-#define SystemStackSize (512)
+#define IRAM_ADDR 0x10000000
 
 typedef uint8_t DmaChannel;			///< A type that represents a DMA channel number
 typedef uint8_t DmaPriority;		///< A type that represents a DMA priority

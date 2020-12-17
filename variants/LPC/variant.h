@@ -26,10 +26,6 @@
 #include "Core.h"
 #include "gpio.h"
 
-#ifdef __GNUC__  /* GCC CS3 */
-#    include "syscalls.h" /** RedHat Newlib minimal stub */
-#endif
-
 
 #ifdef __cplusplus
 

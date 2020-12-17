@@ -15,7 +15,7 @@
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
-
+#pragma once
 /**
   * \file syscalls.h
   *
@@ -31,6 +31,20 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#ifndef SystemStackSize
+# define SystemStackSize	(512)
+#endif
+
+extern char _end;									// defined by the linker script
+extern char _estack;
+
+void OutOfMemoryHandler() noexcept;					// this must be provided by the client application
+
+extern const char * const sysStackLimit;
+
+
+extern char *heapTop;
+extern const char *heapLimit;
 /*----------------------------------------------------------------------------
  *        Exported functions
  *----------------------------------------------------------------------------*/
@@ -38,8 +52,6 @@
 extern "C" {
 #endif
 
-extern char *heapTop;
-extern const char *heapLimit;
 extern caddr_t _sbrk( int incr ) ;
 
 extern int link( char *cOld, char *cNew ) ;
