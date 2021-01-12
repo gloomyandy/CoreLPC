@@ -117,6 +117,11 @@ void USBCDC::callback_state_change(DeviceState new_state)
     if (new_state != Configured) {
         _change_terminal_connected(false);
     }
+#ifndef USB_CDC_USE_DTR
+    else
+        _change_terminal_connected(true);
+#endif
+
 }
 
 void USBCDC::callback_request(const setup_packet_t *setup)
@@ -142,11 +147,13 @@ void USBCDC::callback_request(const setup_packet_t *setup)
                 size = 7;
                 break;
             case CDC_SET_CONTROL_LINE_STATE:
+#if CDC_USE_DTR
                 if (setup->wValue & CLS_DTR) {
                     _change_terminal_connected(true);
                 } else {
                     _change_terminal_connected(false);
                 }
+#endif
                 result = Success;
                 break;
             default:
