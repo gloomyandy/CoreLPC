@@ -34,6 +34,7 @@
 
 #include "stdutils.h"
 #include <sys/types.h>
+#include "chip.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,6 +66,48 @@ void coreDelay(uint32_t ms) noexcept;
  * @see delay()
  */
 void delayMicroseconds(uint32_t us) noexcept;
+
+/**
+ * Delay for a number of cpu cycles
+ */
+
+#ifdef __cplusplus
+[[gnu::always_inline, gnu::optimize("03")]]
+#endif
+static inline void __delay_4cycles(uint32_t cy) noexcept { // +1 cycle
+__asm__ __volatile__(
+    "  .syntax unified\n\t" // is to prevent CM0,CM1 non-unified syntax
+    "1:\n\t"
+    "  subs %[cnt],#1\n\t" // 1
+    "  mov r0, r0\n\t"            // 1
+    "  bne 1b\n\t"         // 1 + (1? reload)
+    : [cnt]"+r"(cy)   // output: +r means input+output
+    :                 // input:
+    : "cc"            // clobbers:
+);
+}
+
+// Delay in cycles
+#ifdef __cplusplus
+[[gnu::always_inline, gnu::optimize("03")]]
+#endif
+
+static inline uint32_t DelayCycles(const uint32_t start, const uint32_t cycles) noexcept 
+{
+    if (cycles >> 2) __delay_4cycles(cycles >> 2);
+    return 0;
+}
+
+static inline uint32_t GetCurrentCycles() noexcept
+{
+    return 0;
+}
+
+static inline uint32_t NanosecondsToCycles(uint32_t ns) noexcept
+{
+  return (ns * (uint64_t)SystemCoreClock)/1000000000u;
+}
+
 
 #ifdef __cplusplus
 }
