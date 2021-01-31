@@ -103,14 +103,14 @@ enum PinMode
 #ifdef __cplusplus
 
 // Set a pin high with no error checking
-inline void fastDigitalWriteHigh(const Pin pin) noexcept
+static inline void fastDigitalWriteHigh(const Pin pin) noexcept
 {
     LPC_GPIO_T *LPC_GPIO_PORT = (LPC_GPIO_T*)(LPC_GPIO0_BASE + (pin & ~0x1f));
     LPC_GPIO_PORT->SET = 1 << (pin & 0x1f); 
 }
 
 // Set a pin low with no error checking
-inline void fastDigitalWriteLow(const Pin pin) noexcept
+static inline void fastDigitalWriteLow(const Pin pin) noexcept
 {
     LPC_GPIO_T *LPC_GPIO_PORT = (LPC_GPIO_T*)(LPC_GPIO0_BASE + (pin & ~0x1f));
     LPC_GPIO_PORT->CLR = 1 << (pin & 0x1f);    
