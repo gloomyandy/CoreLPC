@@ -72,13 +72,15 @@ void HardwareSPI::disable() noexcept
 #ifdef SSPI_DEBUG
     if( (ssp->SR & SR_BSY) ) debugPrintf("SPI Busy\n");
     if( !(ssp->SR & SR_TFE) ) debugPrintf("SPI Tx Not Empty\n");
-    if( (ss->SR & SR_RNE) ) debugPrintf("SPI Rx Not Empty\n");
+    if( (ssp->SR & SR_RNE) ) debugPrintf("SPI Rx Not Empty\n");
 #endif
 
     Chip_SSP_DMA_Disable(ssp);
+    // enable so we can flush the queues
+    Chip_SSP_Enable(ssp);
     flushTxFifo(ssp);
     flushRxFifo(ssp);
-
+    Chip_SSP_Disable(ssp);
     Chip_SSP_ClearIntPending(ssp, SSP_INT_CLEAR_BITMASK);
 }
 
@@ -147,6 +149,7 @@ static inline CHIP_SSP_CLOCK_MODE_T getSSPMode(uint8_t spiMode) noexcept
 extern "C"  void SSP0_IRQHandler(void) noexcept
 {
     Chip_SSP_DMA_Disable(LPC_SSP0);
+    Chip_SSP_Disable(LPC_SSP0);
     HardwareSPI *s = &HardwareSPI::SSP0;
     if (s->callback) s->callback(s);    
 }
@@ -154,6 +157,7 @@ extern "C"  void SSP0_IRQHandler(void) noexcept
 extern "C"  void SSP1_IRQHandler(void) noexcept
 {
     Chip_SSP_DMA_Disable(LPC_SSP1);
+    Chip_SSP_Disable(LPC_SSP1);
     HardwareSPI *s = &HardwareSPI::SSP1;
     if (s->callback) s->callback(s);
 }    
@@ -253,6 +257,8 @@ void HardwareSPI::startTransfer(const uint8_t *tx_data, uint8_t *rx_data, size_t
     
     DMA_Channel_t chanRX;
     DMA_Channel_t chanTX;
+    
+    Chip_SSP_Enable(ssp);    
     
     if(ssp == LPC_SSP0)
     {
